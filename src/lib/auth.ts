@@ -1,14 +1,7 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-
-// Fake user for UI demo (no database required)
-const FAKE_USER = {
-  id: 'fake-user-1',
-  email: 'demo@forge.com',
-  name: 'Demo User',
-  role: 'SUPER_ADMIN' as const,
-  password: 'demo123', // No hashing needed for demo
-};
+import bcrypt from 'bcryptjs';
+import { prisma } from '@/lib/prisma';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -22,20 +15,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        // Simple fake authentication - no database needed
-        if (
-          credentials.email === FAKE_USER.email &&
-          credentials.password === FAKE_USER.password
-        ) {
-          return {
-            id: FAKE_USER.id,
-            email: FAKE_USER.email,
-            name: FAKE_USER.name,
-            role: FAKE_USER.role,
-          };
+        const email = credentials.email as string;
+        const password = credentials.password as string;
+
+        // Find user in database
+        const user = await prisma.user.findUnique({
+          where: { email },
+        });
+
+        if (!user) {
+          return null;
         }
 
-        return null;
+        // Verify password
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        };
       },
     }),
   ],

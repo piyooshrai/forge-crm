@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useMemo } from 'react';
+import { Suspense, useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import GlassCard from '@/components/GlassCard';
@@ -8,7 +8,6 @@ import SectionHeader from '@/components/SectionHeader';
 import { Modal, Button, TextInput, SelectInput, Badge, EmptyState } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import {
-  mockDeals,
   dealStages,
   stageLabels,
   stageProbabilities,
@@ -17,11 +16,31 @@ import {
   amountTypes,
   formatCurrency,
   formatDate,
-  type Deal,
   type DealStage,
   type Pipeline,
   type AmountType,
 } from '@/lib/mock-data';
+
+// API Deal type (matches Prisma schema)
+interface ApiDeal {
+  id: string;
+  name: string;
+  pipeline: string;
+  stage: string;
+  probability: number;
+  amountType: string;
+  amountTotal: number;
+  hourlyRate: number | null;
+  expectedHours: number | null;
+  monthlyAmount: number | null;
+  closeDate: string;
+  ownerId: string;
+  owner: { id: string; name: string; email: string };
+  lineItems?: any[];
+  convertedFromLead?: any;
+  createdAt: string;
+  updatedAt: string;
+}
 
 const stageColors: Record<DealStage, string> = {
   LEAD: 'bg-white/10 text-white/70',
@@ -40,9 +59,11 @@ function DealsContent() {
   const pipelineParam = searchParams.get('pipeline') || 'all';
 
   const { showToast } = useToast();
-  const [deals, setDeals] = useState<Deal[]>(mockDeals);
+  const [deals, setDeals] = useState<ApiDeal[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // New deal form
   const [formData, setFormData] = useState({
@@ -57,6 +78,25 @@ function DealsContent() {
     closeDate: '',
   });
 
+  // Fetch deals from API
+  useEffect(() => {
+    fetchDeals();
+  }, []);
+
+  const fetchDeals = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/deals');
+      if (!res.ok) throw new Error('Failed to fetch deals');
+      const data = await res.json();
+      setDeals(data);
+    } catch (error) {
+      showToast('Failed to load deals', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filter deals
   const filteredDeals = useMemo(() => {
     return deals.filter((deal) => {
@@ -68,44 +108,66 @@ function DealsContent() {
 
   // Group deals by stage for kanban
   const dealsByStage = useMemo(() => {
-    const grouped: Record<DealStage, Deal[]> = {} as Record<DealStage, Deal[]>;
+    const grouped: Record<DealStage, ApiDeal[]> = {} as Record<DealStage, ApiDeal[]>;
     dealStages.forEach((stage) => {
       grouped[stage] = filteredDeals.filter((d) => d.stage === stage);
     });
     return grouped;
   }, [filteredDeals]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newDeal: Deal = {
-      id: String(Date.now()),
-      name: formData.name,
-      pipeline: formData.pipeline,
-      stage: formData.stage,
-      probability: stageProbabilities[formData.stage],
-      amountType: formData.amountType,
-      amountTotal: Number(formData.amountTotal) || 0,
-      hourlyRate: formData.amountType === 'HOURLY' ? Number(formData.hourlyRate) : undefined,
-      expectedHours: formData.amountType === 'HOURLY' ? Number(formData.expectedHours) : undefined,
-      monthlyAmount: formData.amountType === 'RETAINER' ? Number(formData.monthlyAmount) : undefined,
-      closeDate: new Date(formData.closeDate),
-      owner: { name: 'John Doe', email: 'john@forge.com' },
-      createdAt: new Date(),
-    };
-    setDeals([newDeal, ...deals]);
-    setIsModalOpen(false);
-    setFormData({
-      name: '',
-      pipeline: 'IT_SERVICES',
-      stage: 'LEAD',
-      amountType: 'FIXED',
-      amountTotal: '',
-      hourlyRate: '',
-      expectedHours: '',
-      monthlyAmount: '',
-      closeDate: '',
-    });
-    showToast('Deal created successfully', 'success');
+    setSubmitting(true);
+
+    try {
+      const payload: any = {
+        name: formData.name,
+        pipeline: formData.pipeline,
+        stage: formData.stage,
+        amountType: formData.amountType,
+        closeDate: formData.closeDate,
+      };
+
+      if (formData.amountType === 'FIXED') {
+        payload.amountTotal = Number(formData.amountTotal) || 0;
+      } else if (formData.amountType === 'HOURLY') {
+        payload.hourlyRate = Number(formData.hourlyRate) || 0;
+        payload.expectedHours = Number(formData.expectedHours) || 0;
+      } else if (formData.amountType === 'RETAINER') {
+        payload.monthlyAmount = Number(formData.monthlyAmount) || 0;
+      }
+
+      const res = await fetch('/api/deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to create deal');
+      }
+
+      const newDeal = await res.json();
+      setDeals([newDeal, ...deals]);
+      setIsModalOpen(false);
+      setFormData({
+        name: '',
+        pipeline: 'IT_SERVICES',
+        stage: 'LEAD',
+        amountType: 'FIXED',
+        amountTotal: '',
+        hourlyRate: '',
+        expectedHours: '',
+        monthlyAmount: '',
+        closeDate: '',
+      });
+      showToast('Deal created successfully', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to create deal', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, dealId: string) => {
@@ -116,13 +178,38 @@ function DealsContent() {
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, newStage: DealStage) => {
+  const handleDrop = async (e: React.DragEvent, newStage: DealStage) => {
     e.preventDefault();
     const dealId = e.dataTransfer.getData('dealId');
+    const deal = deals.find((d) => d.id === dealId);
+
+    if (!deal || deal.stage === newStage) return;
+
+    // Optimistic update
     setDeals(deals.map((d) =>
       d.id === dealId ? { ...d, stage: newStage, probability: stageProbabilities[newStage] } : d
     ));
-    showToast(`Deal moved to ${stageLabels[newStage]}`, 'info');
+
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: newStage }),
+      });
+
+      if (!res.ok) {
+        // Revert on error
+        setDeals(deals);
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to update deal');
+      }
+
+      showToast(`Deal moved to ${stageLabels[newStage]}`, 'info');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to update deal stage', 'error');
+      // Refetch to ensure consistent state
+      fetchDeals();
+    }
   };
 
   const setView = (newView: string) => {
@@ -147,6 +234,18 @@ function DealsContent() {
     }
     return Number(formData.amountTotal) || 0;
   };
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-[1920px] px-4 py-6 lg:px-8 lg:py-8">
+        <div className="animate-pulse">
+          <div className="h-8 w-32 bg-white/10 rounded mb-6"></div>
+          <div className="h-12 bg-white/5 rounded-lg mb-6"></div>
+          <div className="h-96 bg-white/5 rounded-lg"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1920px] px-4 py-6 lg:px-8 lg:py-8">
@@ -262,11 +361,11 @@ function DealsContent() {
                       </Link>
                     </td>
                     <td className="hidden px-4 py-3 text-sm text-white/60 md:table-cell">
-                      {pipelineLabels[deal.pipeline]}
+                      {pipelineLabels[deal.pipeline as Pipeline] || deal.pipeline}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${stageColors[deal.stage]}`}>
-                        {stageLabels[deal.stage]}
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${stageColors[deal.stage as DealStage] || 'bg-white/10 text-white/70'}`}>
+                        {stageLabels[deal.stage as DealStage] || deal.stage}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -278,10 +377,10 @@ function DealsContent() {
                       <span className="text-sm text-white/60">{deal.probability}%</span>
                     </td>
                     <td className="hidden px-4 py-3 text-sm text-white/50 sm:table-cell">
-                      {formatDate(deal.closeDate)}
+                      {formatDate(new Date(deal.closeDate))}
                     </td>
                     <td className="hidden px-4 py-3 text-sm text-white/60 lg:table-cell">
-                      {deal.owner.name}
+                      {deal.owner?.name || 'Unassigned'}
                     </td>
                   </tr>
                 ))}
@@ -338,7 +437,7 @@ function DealsContent() {
                             {formatCurrency(deal.amountTotal)}
                           </p>
                           <p className="text-xs text-white/50 mt-1">
-                            Close: {formatDate(deal.closeDate)}
+                            Close: {formatDate(new Date(deal.closeDate))}
                           </p>
                         </Link>
                       </div>
@@ -454,7 +553,9 @@ function DealsContent() {
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit">Create Deal</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Creating...' : 'Create Deal'}
+            </Button>
           </div>
         </form>
       </Modal>

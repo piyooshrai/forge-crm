@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { canEditDeal, canSetDealStage } from '@/lib/auth-helpers';
-import { DealStage } from '@prisma/client';
+import { DealStage, UserRole } from '@prisma/client';
 
 export async function GET(
   req: NextRequest,
@@ -45,7 +45,7 @@ export async function GET(
         orderBy: { dueDate: 'asc' },
       },
       convertedFromLead: {
-        select: { id: true, companyName: true },
+        select: { id: true, name: true },
       },
     },
   });
@@ -66,7 +66,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!canEditDeal(session.user.role as any)) {
+  if (!canEditDeal(session.user.role as UserRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -74,25 +74,60 @@ export async function PATCH(
   const body = await req.json();
 
   // Check if stage change is allowed
-  if (body.stage && !canSetDealStage(session.user.role as any, body.stage)) {
+  if (body.stage && !canSetDealStage(session.user.role as UserRole, body.stage)) {
     return NextResponse.json(
       { error: 'You do not have permission to set this stage' },
       { status: 403 }
     );
   }
 
+  // Calculate amount for hourly deals
+  let amountTotal = body.amountTotal;
+  if (body.amountType === 'HOURLY' && body.hourlyRate && body.expectedHours) {
+    amountTotal = body.hourlyRate * body.expectedHours;
+  }
+
   const deal = await prisma.deal.update({
     where: { id },
     data: {
       ...body,
+      amountTotal: amountTotal !== undefined ? amountTotal : undefined,
       closeDate: body.closeDate ? new Date(body.closeDate) : undefined,
     },
     include: {
       owner: {
         select: { id: true, name: true, email: true },
       },
+      lineItems: {
+        include: {
+          product: true,
+        },
+      },
     },
   });
 
   return NextResponse.json(deal);
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Only SUPER_ADMIN can delete deals
+  if (session.user.role !== UserRole.SUPER_ADMIN) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  await prisma.deal.delete({
+    where: { id },
+  });
+
+  return NextResponse.json({ success: true });
 }

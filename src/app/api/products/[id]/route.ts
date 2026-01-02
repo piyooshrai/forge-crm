@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { UserRole } from '@prisma/client';
 
 export async function GET(
   req: NextRequest,
@@ -32,6 +33,11 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Only SUPER_ADMIN can update products
+  if (session.user.role !== UserRole.SUPER_ADMIN) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { id } = await params;
   const body = await req.json();
 
@@ -39,7 +45,7 @@ export async function PATCH(
     where: { id },
     data: {
       ...body,
-      price: body.price ? parseFloat(body.price) : undefined,
+      unitPrice: body.unitPrice ? parseFloat(body.unitPrice) : undefined,
     },
   });
 
@@ -53,6 +59,11 @@ export async function DELETE(
   const session = await auth();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Only SUPER_ADMIN can delete products
+  if (session.user.role !== UserRole.SUPER_ADMIN) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { id } = await params;

@@ -11,7 +11,9 @@
       "Bash(cmd.exe /c \"\"\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\"\" auth status\")",
       "Bash(cmd.exe /c \"\"\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\"\" auth login --web --git-protocol https\")",
       "Bash(cmd.exe /c \"cd \"\"D:\\\\Application Development\\\\Forge\\\\forge\"\" && \"\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\"\" repo create forge-crm --public --source=. --push\")",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git push:*)",
+      "Bash(npx prisma generate:*)"
     ]
   }
 }

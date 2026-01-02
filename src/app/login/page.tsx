@@ -90,9 +90,13 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 rounded-lg bg-white/5 border border-white/10 p-4 text-xs text-white/50">
-            <p className="font-medium mb-2">Demo credentials (no database required):</p>
-            <p className="text-cyan-400 font-semibold">demo@forge.com / demo123</p>
-            <p className="mt-2 text-white/40">This is a fake user for UI demo only</p>
+            <p className="font-medium mb-2">Login credentials:</p>
+            <div className="space-y-1 mt-2">
+              <p><span className="text-white/60">Admin:</span> <span className="text-cyan-400 font-semibold">admin@forge.com</span></p>
+              <p><span className="text-white/60">Sales:</span> <span className="text-cyan-400 font-semibold">john@forge.com</span></p>
+              <p><span className="text-white/60">Marketing:</span> <span className="text-cyan-400 font-semibold">mike@forge.com</span></p>
+            </div>
+            <p className="mt-2 text-white/40">Password for all: password123</p>
           </div>
         </GlassCard>
       </div>

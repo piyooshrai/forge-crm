@@ -10,10 +10,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============ ENUMS ============
+
 enum UserRole {
   SUPER_ADMIN
   SALES_REP
   MARKETING_REP
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  COLD_CALL
+  LINKEDIN
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
 }
 
 enum Pipeline {
@@ -42,19 +59,28 @@ enum ActivityType {
   NOTE
   CALL
   MEETING
+  EMAIL
 }
+
+enum ProductType {
+  ONE_TIME
+  RECURRING
+}
+
+// ============ MODELS ============
 
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String
-  name      String?
+  name      String
   role      UserRole @default(SALES_REP)
+  avatar    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  leadsOwned    Lead[]       @relation("LeadOwner")
-  dealsOwned    Deal[]        @relation("DealOwner")
+  leadsOwned    Lead[]         @relation("LeadOwner")
+  dealsOwned    Deal[]         @relation("DealOwner")
   activities    Activity[]
   tasks         Task[]
   dealLineItems DealLineItem[]
@@ -63,84 +89,90 @@ model User {
 }
 
 model Lead {
-  id              String   @id @default(cuid())
-  companyName     String?
-  contactName     String?
-  contactEmail    String?
-  contactPhone    String?
-  source          String?
-  regionTags      String[] @default([])
-  status          String?  // stage-lite
-  ownerId         String
-  owner           User     @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  convertedToDealId String? @unique
-  convertedToDeal Deal?    @relation("LeadToDeal", fields: [convertedToDealId], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String      @id @default(cuid())
+  name              String
+  email             String?
+  phone             String?
+  company           String?
+  title             String?
+  source            LeadSource  @default(OTHER)
+  status            LeadStatus  @default(NEW)
+  regionTags        String[]    @default([])
+  ownerId           String
+  owner             User        @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  convertedToDealId String?     @unique
+  convertedToDeal   Deal?       @relation("LeadToDeal", fields: [convertedToDealId], references: [id])
+  isConverted       Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
-  activities      Activity[]
-  tasks           Task[]
+  activities Activity[]
+  tasks      Task[]
 
   @@map("leads")
 }
 
 model Deal {
-  id              String      @id @default(cuid())
-  name            String
-  pipeline        Pipeline    @default(IT_SERVICES)
-  stage           DealStage   @default(LEAD)
-  probability     Int?        @default(0) // 0-100
-  closeDate       DateTime?
-  amountType      AmountType  @default(FIXED)
-  amountTotal     Float?
-  hourlyRate      Float?
-  expectedHours   Float?
-  source          String?
-  regionTags      String[]    @default([])
-  ownerId         String
-  owner           User        @relation("DealOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  convertedFromLeadId String? @unique
-  convertedFromLead Lead?     @relation("LeadToDeal")
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id                  String     @id @default(cuid())
+  name                String
+  pipeline            Pipeline   @default(IT_SERVICES)
+  stage               DealStage  @default(LEAD)
+  amountType          AmountType @default(FIXED)
+  amountTotal         Float?
+  hourlyRate          Float?
+  expectedHours       Float?
+  probability         Int        @default(0) // 0-100
+  closeDate           DateTime?
+  source              LeadSource?
+  regionTags          String[]   @default([])
+  company             String?
+  contactEmail        String?
+  ownerId             String
+  owner               User       @relation("DealOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  convertedFromLeadId String?    @unique
+  convertedFromLead   Lead?      @relation("LeadToDeal")
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 
-  lineItems       DealLineItem[]
-  activities      Activity[]
-  tasks           Task[]
+  lineItems  DealLineItem[]
+  activities Activity[]
+  tasks      Task[]
 
   @@map("deals")
 }
 
 model Product {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   name        String
   description String?
-  sku         String?  @unique
-  price       Float
-  isRecurring Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  category    String
+  unitPrice   Float
+  type        ProductType @default(ONE_TIME)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  lineItems   DealLineItem[]
+  lineItems DealLineItem[]
 
   @@map("products")
 }
 
 model DealLineItem {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   dealId      String
-  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  deal        Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
   productId   String?
-  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  name        String   // product name or custom name
-  quantity    Float    @default(1)
+  product     Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName String      // denormalized for flexibility
+  quantity    Float       @default(1)
   unitPrice   Float
-  discount    Float    @default(0)
-  isRecurring Boolean  @default(false)
+  discount    Float       @default(0)
+  type        ProductType @default(ONE_TIME)
+  total       Float       // calculated: qty * unitPrice * (1 - discount)
   createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdBy   User        @relation(fields: [createdById], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   @@map("deal_line_items")
 }
@@ -148,8 +180,8 @@ model DealLineItem {
 model Activity {
   id          String       @id @default(cuid())
   type        ActivityType @default(NOTE)
-  title       String?
-  description String?
+  subject     String
+  description String?      @db.Text
   leadId      String?
   lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   dealId      String?
@@ -163,20 +195,19 @@ model Activity {
 }
 
 model Task {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   description String?
-  completed   Boolean  @default(false)
+  completed   Boolean   @default(false)
   dueDate     DateTime?
   leadId      String?
-  lead        Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   dealId      String?
-  deal        Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  user        User      @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("tasks")
 }
-

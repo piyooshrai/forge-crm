@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { canCreateDeal } from '@/lib/auth-helpers';
-import { Pipeline, DealStage } from '@prisma/client';
+import { Pipeline, DealStage, UserRole } from '@prisma/client';
 
 export async function POST(
   req: NextRequest,
@@ -13,7 +13,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!canCreateDeal(session.user.role as any)) {
+  if (!canCreateDeal(session.user.role as UserRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -28,27 +28,36 @@ export async function POST(
     return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
   }
 
-  if (lead.convertedToDealId) {
+  if (lead.isConverted || lead.convertedToDealId) {
     return NextResponse.json({ error: 'Lead already converted' }, { status: 400 });
   }
 
   // Create deal from lead
   const deal = await prisma.deal.create({
     data: {
-      name: lead.companyName || 'Untitled Deal',
+      name: body.name || lead.company || lead.name || 'Untitled Deal',
       pipeline: (body.pipeline as Pipeline) || Pipeline.IT_SERVICES,
-      stage: DealStage.LEAD,
+      stage: DealStage.QUALIFIED, // Start at QUALIFIED stage after conversion
       source: lead.source,
       regionTags: lead.regionTags,
+      company: lead.company,
+      contactEmail: lead.email,
       ownerId: lead.ownerId,
       convertedFromLeadId: lead.id,
+      probability: 30, // Default probability for QUALIFIED stage
+    },
+    include: {
+      owner: {
+        select: { id: true, name: true, email: true },
+      },
     },
   });
 
-  // Update lead with deal reference
+  // Update lead with deal reference and mark as converted
   await prisma.lead.update({
     where: { id },
     data: {
+      isConverted: true,
       convertedToDealId: deal.id,
     },
   });

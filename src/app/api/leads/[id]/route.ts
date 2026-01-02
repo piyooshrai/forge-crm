@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { canEditLead } from '@/lib/auth-helpers';
+import { UserRole } from '@prisma/client';
 
 export async function GET(
   req: NextRequest,
@@ -57,7 +58,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!canEditLead(session.user.role as any)) {
+  if (!canEditLead(session.user.role as UserRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -75,4 +76,27 @@ export async function PATCH(
   });
 
   return NextResponse.json(lead);
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Only SUPER_ADMIN can delete leads
+  if (session.user.role !== UserRole.SUPER_ADMIN) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  await prisma.lead.delete({
+    where: { id },
+  });
+
+  return NextResponse.json({ success: true });
 }

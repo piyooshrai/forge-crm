@@ -1,37 +1,67 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import GlassCard from '@/components/GlassCard';
 import SectionHeader from '@/components/SectionHeader';
 import { Modal, ConfirmModal, Button, TextInput, SelectInput, TextareaInput, Badge, EmptyState, Checkbox } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
-import {
-  mockProducts,
-  formatCurrency,
-  formatDate,
-  type Product,
-} from '@/lib/mock-data';
+import { formatCurrency } from '@/lib/mock-data';
 
-const categories = ['IT Services', 'SaaS Products', 'Staffing', 'Hardware', 'Services'] as const;
+// API Product type (matches Prisma schema)
+interface ApiProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  sku: string;
+  unitPrice: number;
+  type: 'ONE_TIME' | 'RECURRING';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const categories = ['IT Services', 'SaaS Products', 'Staffing', 'Consulting'] as const;
 
 export default function ProductsPage() {
   const { showToast } = useToast();
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ApiProduct | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [submitting, setSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     category: 'IT Services',
     sku: '',
-    price: '',
-    isRecurring: false,
+    unitPrice: '',
+    type: 'ONE_TIME' as 'ONE_TIME' | 'RECURRING',
   });
+
+  // Fetch products from API
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/products');
+      if (!res.ok) throw new Error('Failed to fetch products');
+      const data = await res.json();
+      setProducts(data);
+    } catch (error) {
+      showToast('Failed to load products', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -49,8 +79,8 @@ export default function ProductsPage() {
       description: '',
       category: 'IT Services',
       sku: '',
-      price: '',
-      isRecurring: false,
+      unitPrice: '',
+      type: 'ONE_TIME',
     });
     setEditingProduct(null);
   };
@@ -60,71 +90,115 @@ export default function ProductsPage() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (product: Product) => {
+  const openEditModal = (product: ApiProduct) => {
     setEditingProduct(product);
     setFormData({
       name: product.name,
-      description: product.description,
+      description: product.description || '',
       category: product.category,
       sku: product.sku,
-      price: String(product.price),
-      isRecurring: product.isRecurring,
+      unitPrice: String(product.unitPrice),
+      type: product.type,
     });
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
 
-    if (editingProduct) {
-      // Update existing product
-      setProducts(products.map((p) =>
-        p.id === editingProduct.id
-          ? {
-              ...p,
-              name: formData.name,
-              description: formData.description,
-              category: formData.category,
-              sku: formData.sku,
-              price: Number(formData.price) || 0,
-              isRecurring: formData.isRecurring,
-            }
-          : p
-      ));
-      showToast('Product updated successfully', 'success');
-    } else {
-      // Create new product
-      const newProduct: Product = {
-        id: String(Date.now()),
+    try {
+      const payload = {
         name: formData.name,
-        description: formData.description,
+        description: formData.description || null,
         category: formData.category,
         sku: formData.sku,
-        price: Number(formData.price) || 0,
-        isRecurring: formData.isRecurring,
-        createdAt: new Date(),
+        unitPrice: Number(formData.unitPrice) || 0,
+        type: formData.type,
       };
-      setProducts([newProduct, ...products]);
-      showToast('Product created successfully', 'success');
-    }
 
-    setIsModalOpen(false);
-    resetForm();
+      if (editingProduct) {
+        // Update existing product
+        const res = await fetch(`/api/products/${editingProduct.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Failed to update product');
+        }
+
+        const updatedProduct = await res.json();
+        setProducts(products.map((p) => p.id === editingProduct.id ? updatedProduct : p));
+        showToast('Product updated successfully', 'success');
+      } else {
+        // Create new product
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Failed to create product');
+        }
+
+        const newProduct = await res.json();
+        setProducts([newProduct, ...products]);
+        showToast('Product created successfully', 'success');
+      }
+
+      setIsModalOpen(false);
+      resetForm();
+    } catch (error: any) {
+      showToast(error.message || 'Failed to save product', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDelete = () => {
-    if (deletingProductId) {
+  const handleDelete = async () => {
+    if (!deletingProductId) return;
+
+    try {
+      const res = await fetch(`/api/products/${deletingProductId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to delete product');
+      }
+
       setProducts(products.filter((p) => p.id !== deletingProductId));
       showToast('Product deleted', 'info');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to delete product', 'error');
+    } finally {
+      setIsDeleteModalOpen(false);
+      setDeletingProductId(null);
     }
-    setIsDeleteModalOpen(false);
-    setDeletingProductId(null);
   };
 
   const confirmDelete = (productId: string) => {
     setDeletingProductId(productId);
     setIsDeleteModalOpen(true);
   };
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-[1920px] px-4 py-6 lg:px-8 lg:py-8">
+        <div className="animate-pulse">
+          <div className="h-8 w-32 bg-white/10 rounded mb-6"></div>
+          <div className="h-12 bg-white/5 rounded-lg mb-6"></div>
+          <div className="h-96 bg-white/5 rounded-lg"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1920px] px-4 py-6 lg:px-8 lg:py-8">
@@ -218,13 +292,13 @@ export default function ProductsPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span className="text-sm font-medium text-cyan-400">
-                      {formatCurrency(product.price)}
-                      {product.isRecurring && <span className="text-white/50">/mo</span>}
+                      {formatCurrency(product.unitPrice)}
+                      {product.type === 'RECURRING' && <span className="text-white/50">/mo</span>}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <Badge variant={product.isRecurring ? 'info' : 'default'} size="sm">
-                      {product.isRecurring ? 'Recurring' : 'One-time'}
+                    <Badge variant={product.type === 'RECURRING' ? 'info' : 'default'} size="sm">
+                      {product.type === 'RECURRING' ? 'Recurring' : 'One-time'}
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -302,27 +376,29 @@ export default function ProductsPage() {
             <TextInput
               label="Price"
               type="number"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              value={formData.unitPrice}
+              onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
               required
               placeholder="5000"
               min="0"
             />
-            <div className="flex items-end pb-2">
-              <Checkbox
-                label="Recurring (monthly billing)"
-                checked={formData.isRecurring}
-                onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
-              />
-            </div>
+            <SelectInput
+              label="Billing Type"
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as 'ONE_TIME' | 'RECURRING' })}
+              options={[
+                { value: 'ONE_TIME', label: 'One-time' },
+                { value: 'RECURRING', label: 'Recurring (monthly)' },
+              ]}
+            />
           </div>
 
           {/* Price Preview */}
           <div className="rounded-lg bg-white/5 border border-white/10 p-4">
             <p className="text-xs text-white/50 mb-1">Price Display</p>
             <p className="text-lg font-semibold text-cyan-400">
-              {formatCurrency(Number(formData.price) || 0)}
-              {formData.isRecurring && <span className="text-base text-white/50">/month</span>}
+              {formatCurrency(Number(formData.unitPrice) || 0)}
+              {formData.type === 'RECURRING' && <span className="text-base text-white/50">/month</span>}
             </p>
           </div>
 
@@ -330,7 +406,9 @@ export default function ProductsPage() {
             <Button type="button" variant="secondary" onClick={() => { setIsModalOpen(false); resetForm(); }}>
               Cancel
             </Button>
-            <Button type="submit">{editingProduct ? 'Update Product' : 'Create Product'}</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
+            </Button>
           </div>
         </form>
       </Modal>
