@@ -43,6 +43,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      // Always redirect to the same origin
+      if (url.startsWith('/')) return `${baseUrl}${url}`;
+      if (new URL(url).origin === baseUrl) return url;
+      return `${baseUrl}/login`;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.role = (user as any).role;
@@ -60,6 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   pages: {
     signIn: '/login',
+    signOut: '/login',
   },
   session: {
     strategy: 'jwt',
