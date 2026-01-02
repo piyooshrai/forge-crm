@@ -1,0 +1,100 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { canEditDeal, canSetDealStage } from '@/lib/auth-helpers';
+import { DealStage } from '@prisma/client';
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const deal = await prisma.deal.findUnique({
+    where: { id },
+    include: {
+      owner: {
+        select: { id: true, name: true, email: true },
+      },
+      lineItems: {
+        include: {
+          product: true,
+          createdBy: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      },
+      activities: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
+      tasks: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+        orderBy: { dueDate: 'asc' },
+      },
+      convertedFromLead: {
+        select: { id: true, companyName: true },
+      },
+    },
+  });
+
+  if (!deal) {
+    return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+  }
+
+  return NextResponse.json(deal);
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!canEditDeal(session.user.role as any)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const body = await req.json();
+
+  // Check if stage change is allowed
+  if (body.stage && !canSetDealStage(session.user.role as any, body.stage)) {
+    return NextResponse.json(
+      { error: 'You do not have permission to set this stage' },
+      { status: 403 }
+    );
+  }
+
+  const deal = await prisma.deal.update({
+    where: { id },
+    data: {
+      ...body,
+      closeDate: body.closeDate ? new Date(body.closeDate) : undefined,
+    },
+    include: {
+      owner: {
+        select: { id: true, name: true, email: true },
+      },
+    },
+  });
+
+  return NextResponse.json(deal);
+}
+

@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  SALES_REP
+  MARKETING_REP
+}
+
+enum Pipeline {
+  IT_SERVICES
+  ALL_PRODUCTS
+  STAFFING
+}
+
+enum DealStage {
+  LEAD
+  QUALIFIED
+  DISCOVERY
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum AmountType {
+  FIXED
+  HOURLY
+  RETAINER
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  MEETING
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      UserRole @default(SALES_REP)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leadsOwned    Lead[]       @relation("LeadOwner")
+  dealsOwned    Deal[]        @relation("DealOwner")
+  activities    Activity[]
+  tasks         Task[]
+  dealLineItems DealLineItem[]
+
+  @@map("users")
+}
+
+model Lead {
+  id              String   @id @default(cuid())
+  companyName     String?
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  source          String?
+  regionTags      String[] @default([])
+  status          String?  // stage-lite
+  ownerId         String
+  owner           User     @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  convertedToDealId String? @unique
+  convertedToDeal Deal?    @relation("LeadToDeal", fields: [convertedToDealId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  activities      Activity[]
+  tasks           Task[]
+
+  @@map("leads")
+}
+
+model Deal {
+  id              String      @id @default(cuid())
+  name            String
+  pipeline        Pipeline    @default(IT_SERVICES)
+  stage           DealStage   @default(LEAD)
+  probability     Int?        @default(0) // 0-100
+  closeDate       DateTime?
+  amountType      AmountType  @default(FIXED)
+  amountTotal     Float?
+  hourlyRate      Float?
+  expectedHours   Float?
+  source          String?
+  regionTags      String[]    @default([])
+  ownerId         String
+  owner           User        @relation("DealOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  convertedFromLeadId String? @unique
+  convertedFromLead Lead?     @relation("LeadToDeal")
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  lineItems       DealLineItem[]
+  activities      Activity[]
+  tasks           Task[]
+
+  @@map("deals")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sku         String?  @unique
+  price       Float
+  isRecurring Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lineItems   DealLineItem[]
+
+  @@map("products")
+}
+
+model DealLineItem {
+  id          String   @id @default(cuid())
+  dealId      String
+  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name        String   // product name or custom name
+  quantity    Float    @default(1)
+  unitPrice   Float
+  discount    Float    @default(0)
+  isRecurring Boolean  @default(false)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("deal_line_items")
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType @default(NOTE)
+  title       String?
+  description String?
+  leadId      String?
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  dealId      String?
+  deal        Deal?        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("activities")
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  completed   Boolean  @default(false)
+  dueDate     DateTime?
+  leadId      String?
+  lead        Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  dealId      String?
+  deal        Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("tasks")
+}
+
