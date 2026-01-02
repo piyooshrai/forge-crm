@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 
@@ -6,13 +9,15 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Skip auth check for demo - just show the UI
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-[#1a1f2e] text-white/90">
-      <Header />
-      <Sidebar />
-      <main className="ml-64 pt-16">{children}</main>
+      <Header onMenuClick={() => setSidebarOpen(true)} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <main className="pt-16 lg:ml-64">
+        <div className="min-h-[calc(100vh-4rem)]">{children}</div>
+      </main>
     </div>
   );
 }
-

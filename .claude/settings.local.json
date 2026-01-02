@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)",
+      "Bash(cmd.exe /c \"gh repo create forge-crm --public --source=\"\"D:\\\\Application Development\\\\Forge\\\\forge\"\" --push\")",
+      "Bash(cmd.exe /c \"where gh 2>nul || echo not found\")",
+      "Bash(cmd.exe /c \"winget install GitHub.cli --accept-source-agreements --accept-package-agreements\")",
+      "Bash(cmd.exe /c \"gh auth status\")",
+      "Bash(cmd.exe /c \"\"\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\"\" auth status\")",
+      "Bash(cmd.exe /c \"\"\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\"\" auth login --web --git-protocol https\")",
+      "Bash(cmd.exe /c \"cd \"\"D:\\\\Application Development\\\\Forge\\\\forge\"\" && \"\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\"\" repo create forge-crm --public --source=. --push\")",
+      "Bash(npm run build:*)"
     ]
   }
 }

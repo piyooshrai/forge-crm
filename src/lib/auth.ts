@@ -1,5 +1,5 @@
-import { NextAuthOptions } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
+import NextAuth from 'next-auth';
+import Credentials from 'next-auth/providers/credentials';
 
 // Fake user for UI demo (no database required)
 const FAKE_USER = {
@@ -10,10 +10,9 @@ const FAKE_USER = {
   password: 'demo123', // No hashing needed for demo
 };
 
-export const authOptions: NextAuthOptions = {
+export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
-    CredentialsProvider({
-      name: 'Credentials',
+    Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
@@ -50,8 +49,8 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as string;
-        session.user.id = token.id as string;
+        (session.user as any).role = token.role;
+        (session.user as any).id = token.id;
       }
       return session;
     },
@@ -63,5 +62,5 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   secret: process.env.NEXTAUTH_SECRET || 'forge-secret-key-change-in-production',
-};
-
+  trustHost: true,
+});

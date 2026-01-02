@@ -1,9 +1,8 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { UserRole } from '@prisma/client';
 
 export async function getCurrentUser() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   return session?.user || null;
 }
 
@@ -40,4 +39,3 @@ export function canCreateLead(role: UserRole): boolean {
 export function canEditLead(role: UserRole): boolean {
   return role === UserRole.MARKETING_REP || role === UserRole.SUPER_ADMIN;
 }
-
