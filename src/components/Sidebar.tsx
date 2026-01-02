@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { mockUser } from '@/lib/mock-data';
+import { useSession } from 'next-auth/react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: '📊' },
@@ -22,6 +22,11 @@ interface SidebarProps {
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { data: session } = useSession();
+
+  const user = session?.user;
+  const userName = user?.name || 'User';
+  const userRole = (user as any)?.role?.replace('_', ' ') || 'User';
 
   return (
     <>
@@ -121,13 +126,13 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-500/20 border border-cyan-500/30 flex-shrink-0">
                 <span className="text-sm font-medium text-cyan-400">
-                  {mockUser.name.charAt(0)}
+                  {userName.charAt(0)}
                 </span>
               </div>
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{mockUser.name}</p>
-                  <p className="text-xs text-cyan-400/70">{mockUser.role.replace('_', ' ')}</p>
+                  <p className="text-sm font-medium text-white truncate">{userName}</p>
+                  <p className="text-xs text-cyan-400/70">{userRole}</p>
                 </div>
               )}
             </div>

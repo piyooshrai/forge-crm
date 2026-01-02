@@ -1,8 +1,17 @@
+'use client';
+
+import { useSession } from 'next-auth/react';
 import GlassCard from '@/components/GlassCard';
 import SectionHeader from '@/components/SectionHeader';
-import { mockUser } from '@/lib/mock-data';
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
+
+  const user = session?.user;
+  const userName = user?.name || 'User';
+  const userEmail = user?.email || '';
+  const userRole = ((user as any)?.role || 'USER').replace('_', ' ');
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 lg:px-8 lg:py-8">
       <SectionHeader title="Settings" subtitle="Manage your CRM configuration" className="mb-6" />
@@ -12,14 +21,14 @@ export default function SettingsPage() {
         <div className="flex items-center gap-4 mb-6">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500/20 border border-cyan-500/30">
             <span className="text-2xl font-semibold text-cyan-400">
-              {mockUser.name.charAt(0)}
+              {userName.charAt(0)}
             </span>
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-white">{mockUser.name}</h2>
-            <p className="text-sm text-white/60">{mockUser.email}</p>
+            <h2 className="text-xl font-semibold text-white">{userName}</h2>
+            <p className="text-sm text-white/60">{userEmail}</p>
             <span className="inline-flex mt-2 rounded-full px-3 py-1 text-xs font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-              {mockUser.role.replace('_', ' ')}
+              {userRole}
             </span>
           </div>
         </div>
@@ -27,11 +36,11 @@ export default function SettingsPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-lg bg-white/5 border border-white/10 p-4">
             <p className="text-xs text-white/50 mb-1">Role</p>
-            <p className="text-sm font-medium text-white">{mockUser.role.replace('_', ' ')}</p>
+            <p className="text-sm font-medium text-white">{userRole}</p>
           </div>
           <div className="rounded-lg bg-white/5 border border-white/10 p-4">
             <p className="text-xs text-white/50 mb-1">Email</p>
-            <p className="text-sm font-medium text-white">{mockUser.email}</p>
+            <p className="text-sm font-medium text-white">{userEmail}</p>
           </div>
         </div>
       </GlassCard>
