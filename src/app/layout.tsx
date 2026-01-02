@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Forge - CRM Dashboard",
-  description: "Premium CRM dashboard",
+  title: "The Algorithm's Forge - CRM Dashboard",
+  description: "Premium CRM dashboard powered by The Algorithm",
 };
 
 export default function RootLayout({

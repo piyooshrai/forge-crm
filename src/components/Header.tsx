@@ -23,7 +23,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           </button>
 
           <Link href="/dashboard" className="flex items-center">
-            <h1 className="text-xl font-semibold text-white tracking-tight">Forge</h1>
+            <h1 className="text-xl font-semibold text-white tracking-tight">The Algorithm's Forge</h1>
           </Link>
         </div>
 

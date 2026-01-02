@@ -40,7 +40,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-[#1a1f2e]">
       <div className="w-full max-w-md">
         <GlassCard className="p-8">
-          <h1 className="mb-2 text-2xl font-semibold text-white">Forge</h1>
+          <h1 className="mb-2 text-2xl font-semibold text-white">The Algorithm's Forge</h1>
           <p className="mb-6 text-sm text-white/50">Sign in to your account</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
