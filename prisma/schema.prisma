@@ -73,6 +73,27 @@ enum ProductType {
   RECURRING
 }
 
+enum AlertType {
+  QUOTA_RED
+  QUOTA_GREEN
+  QUOTA_YELLOW
+  STALE_RED
+  STALE_YELLOW
+  ACTIVITY_RED
+  ACTIVITY_GREEN
+  TASK_RED
+  TASK_YELLOW
+  MONTHLY_RED
+  MONTHLY_GREEN
+  MONTHLY_YELLOW
+}
+
+enum AlertSeverity {
+  RED
+  YELLOW
+  GREEN
+}
+
 // ============ MODELS ============
 
 model User {
@@ -90,6 +111,9 @@ model User {
   activities    Activity[]
   tasks         Task[]
   dealLineItems DealLineItem[]
+  emailLogs     EmailLog[]
+  quotas        UserQuota[]
+  quotaAlerts   QuotaAlert[]
 
   @@map("users")
 }
@@ -216,4 +240,57 @@ model Task {
   updatedAt   DateTime  @updatedAt
 
   @@map("tasks")
+}
+
+// ============ QUOTA & EMAIL MONITORING ============
+
+model EmailLog {
+  id           String        @id @default(cuid())
+  alertType    AlertType
+  severity     AlertSeverity
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  recipientTo  String
+  recipientsCc String[]      @default([])
+  subject      String
+  body         String        @db.Text
+  sesMessageId String?
+  sentAt       DateTime      @default(now())
+  quotaTarget  Float?
+  quotaActual  Float?
+  period       String?
+
+  @@index([userId])
+  @@index([alertType])
+  @@index([sentAt])
+  @@map("email_logs")
+}
+
+model UserQuota {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year         Int
+  month        Int
+  targetAmount Float    @default(3000)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, year, month])
+  @@index([userId])
+  @@map("user_quotas")
+}
+
+model QuotaAlert {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alertType AlertType
+  severity  AlertSeverity
+  period    String
+  sentAt    DateTime      @default(now())
+
+  @@unique([userId, alertType, period])
+  @@index([userId])
+  @@map("quota_alerts")
 }
