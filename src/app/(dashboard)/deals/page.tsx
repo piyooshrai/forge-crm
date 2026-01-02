@@ -3,6 +3,7 @@
 import { Suspense, useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import GlassCard from '@/components/GlassCard';
 import SectionHeader from '@/components/SectionHeader';
 import { Modal, Button, TextInput, SelectInput, Badge, EmptyState } from '@/components/ui';
@@ -59,11 +60,15 @@ function DealsContent() {
   const pipelineParam = searchParams.get('pipeline') || 'all';
 
   const { showToast } = useToast();
+  const { data: session } = useSession();
   const [deals, setDeals] = useState<ApiDeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showMineOnly, setShowMineOnly] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const currentUserId = (session?.user as any)?.id;
 
   // New deal form
   const [formData, setFormData] = useState({
@@ -102,9 +107,10 @@ function DealsContent() {
     return deals.filter((deal) => {
       const matchesSearch = deal.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesPipeline = pipelineParam === 'all' || deal.pipeline === pipelineParam;
-      return matchesSearch && matchesPipeline;
+      const matchesMine = !showMineOnly || deal.ownerId === currentUserId;
+      return matchesSearch && matchesPipeline && matchesMine;
     });
-  }, [deals, searchTerm, pipelineParam]);
+  }, [deals, searchTerm, pipelineParam, showMineOnly, currentUserId]);
 
   // Group deals by stage for kanban
   const dealsByStage = useMemo(() => {
@@ -312,6 +318,16 @@ function DealsContent() {
                 {pipelineLabels[p]}
               </button>
             ))}
+            <button
+              onClick={() => setShowMineOnly(!showMineOnly)}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                showMineOnly
+                  ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-400'
+                  : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10'
+              }`}
+            >
+              {showMineOnly ? 'My Deals' : 'All Deals'}
+            </button>
           </div>
         </div>
       </GlassCard>

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import GlassCard from '@/components/GlassCard';
 import SectionHeader from '@/components/SectionHeader';
 import { Modal, Button, TextInput, SelectInput, Badge, EmptyState } from '@/components/ui';
@@ -59,6 +60,10 @@ const sourceDisplayMap: Record<string, LeadSource> = {
   LINKEDIN: 'LinkedIn',
   TRADE_SHOW: 'Trade Show',
   EMAIL_CAMPAIGN: 'Email Campaign',
+  UPWORK: 'Upwork',
+  GURU: 'Guru',
+  FREELANCER: 'Freelancer',
+  OTHER: 'Other',
 };
 
 // Map display source to API source
@@ -69,6 +74,10 @@ const sourceApiMap: Record<LeadSource, string> = {
   'LinkedIn': 'LINKEDIN',
   'Trade Show': 'TRADE_SHOW',
   'Email Campaign': 'EMAIL_CAMPAIGN',
+  'Upwork': 'UPWORK',
+  'Guru': 'GURU',
+  'Freelancer': 'FREELANCER',
+  'Other': 'OTHER',
 };
 
 const statusColors: Record<LeadStatus, 'info' | 'warning' | 'success' | 'danger'> = {
@@ -80,6 +89,7 @@ const statusColors: Record<LeadStatus, 'info' | 'warning' | 'success' | 'danger'
 
 export default function LeadsPage() {
   const { showToast } = useToast();
+  const { data: session } = useSession();
   const [leads, setLeads] = useState<ApiLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,7 +97,10 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [regionFilter, setRegionFilter] = useState<string>('all');
+  const [showMineOnly, setShowMineOnly] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const currentUserId = (session?.user as any)?.id;
 
   // New lead form state
   const [formData, setFormData] = useState({
@@ -132,10 +145,11 @@ export default function LeadsPage() {
       const matchesSource = sourceFilter === 'all' || lead.source === sourceApiMap[sourceFilter as LeadSource];
       const matchesRegion =
         regionFilter === 'all' || lead.regionTags.includes(regionFilter);
+      const matchesMine = !showMineOnly || lead.ownerId === currentUserId;
 
-      return matchesSearch && matchesStatus && matchesSource && matchesRegion;
+      return matchesSearch && matchesStatus && matchesSource && matchesRegion && matchesMine;
     });
-  }, [leads, searchTerm, statusFilter, sourceFilter, regionFilter]);
+  }, [leads, searchTerm, statusFilter, sourceFilter, regionFilter, showMineOnly, currentUserId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,6 +274,16 @@ export default function LeadsPage() {
                 </option>
               ))}
             </select>
+            <button
+              onClick={() => setShowMineOnly(!showMineOnly)}
+              className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                showMineOnly
+                  ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-400'
+                  : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10'
+              }`}
+            >
+              {showMineOnly ? 'My Leads' : 'All Leads'}
+            </button>
           </div>
         </div>
       </GlassCard>

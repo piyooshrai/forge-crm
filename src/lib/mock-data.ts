@@ -12,7 +12,7 @@ export const leadStatuses = ['New', 'Contacted', 'Qualified', 'Unqualified'] as 
 export type LeadStatus = typeof leadStatuses[number];
 
 // Lead Sources
-export const leadSources = ['Website', 'Referral', 'Cold Call', 'LinkedIn', 'Trade Show', 'Email Campaign'] as const;
+export const leadSources = ['Website', 'Referral', 'Cold Call', 'LinkedIn', 'Trade Show', 'Email Campaign', 'Upwork', 'Guru', 'Freelancer', 'Other'] as const;
 export type LeadSource = typeof leadSources[number];
 
 // Regions
