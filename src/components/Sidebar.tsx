@@ -5,12 +5,22 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+type NavItem = {
+  name: string;
+  href: string;
+  icon: string;
+  disabled?: boolean;
+  roles?: string[];
+};
+
+const navigation: NavItem[] = [
+  { name: 'Dashboard', href: '/dashboard', icon: '📊', roles: ['SUPER_ADMIN', 'SALES_REP'] },
+  { name: 'Marketing Tasks', href: '/marketing/tasks', icon: '📣', roles: ['SUPER_ADMIN', 'MARKETING_REP'] },
+  { name: 'Marketing Stats', href: '/marketing-performance', icon: '📈', roles: ['SUPER_ADMIN'] },
   { name: 'Leads', href: '/leads', icon: '👥' },
-  { name: 'Deals', href: '/deals', icon: '💼' },
-  { name: 'Products', href: '/products', icon: '📦' },
-  { name: 'Reports', href: '/reports', icon: '📈', disabled: true },
+  { name: 'Deals', href: '/deals', icon: '💼', roles: ['SUPER_ADMIN', 'SALES_REP'] },
+  { name: 'Products', href: '/products', icon: '📦', roles: ['SUPER_ADMIN', 'SALES_REP'] },
+  { name: 'Reports', href: '/reports', icon: '📉', disabled: true, roles: ['SUPER_ADMIN', 'SALES_REP'] },
   { name: 'Settings', href: '/settings', icon: '⚙️' },
 ];
 
@@ -26,7 +36,14 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const user = session?.user;
   const userName = user?.name || 'User';
-  const userRole = (user as any)?.role?.replace('_', ' ') || 'User';
+  const userRoleRaw = (user as any)?.role || 'SALES_REP';
+  const userRole = userRoleRaw.replace('_', ' ');
+
+  // Filter navigation based on user role
+  const filteredNav = navigation.filter(item => {
+    if (!item.roles) return true; // No roles = visible to all
+    return item.roles.includes(userRoleRaw);
+  });
 
   return (
     <>
@@ -78,7 +95,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex flex-col gap-1 p-3">
-          {navigation.map((item) => {
+          {filteredNav.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
             return (
               <Link

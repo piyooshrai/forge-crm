@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import GlassCard from '@/components/GlassCard';
 import StatTile from '@/components/StatTile';
 import SectionHeader from '@/components/SectionHeader';
@@ -52,11 +54,20 @@ interface ApiActivity {
 }
 
 export default function DashboardPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [deals, setDeals] = useState<ApiDeal[]>([]);
   const [leads, setLeads] = useState<ApiLead[]>([]);
   const [tasks, setTasks] = useState<ApiTask[]>([]);
   const [activities, setActivities] = useState<ApiActivity[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Redirect marketing reps to their page
+  useEffect(() => {
+    if (status === 'authenticated' && (session?.user as any)?.role === 'MARKETING_REP') {
+      router.replace('/marketing/tasks');
+    }
+  }, [session, status, router]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -407,3 +418,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
