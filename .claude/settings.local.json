@@ -23,7 +23,8 @@
       "Bash(curl:*)",
       "Bash(npx vercel --help:*)",
       "Bash(npx next build)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(timeout:*)"
     ]
   }
 }

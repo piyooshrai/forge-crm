@@ -21,6 +21,7 @@ const navigation: NavItem[] = [
   { name: 'Deals', href: '/deals', icon: '💼', roles: ['SUPER_ADMIN', 'SALES_REP'] },
   { name: 'Products', href: '/products', icon: '📦', roles: ['SUPER_ADMIN', 'SALES_REP'] },
   { name: 'Reports', href: '/reports', icon: '📉', disabled: true, roles: ['SUPER_ADMIN', 'SALES_REP'] },
+  { name: 'Users', href: '/settings/users', icon: '👤', roles: ['SUPER_ADMIN'] },
   { name: 'Settings', href: '/settings', icon: '⚙️' },
 ];
 
