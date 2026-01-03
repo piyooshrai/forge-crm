@@ -17,8 +17,16 @@
       "schedule": "0 9 * * 1"
     },
     {
+      "path": "/api/cron/marketing-check",
+      "schedule": "0 16 * * 5"
+    },
+    {
       "path": "/api/cron/monthly-review",
       "schedule": "0 9 1 * *"
+    },
+    {
+      "path": "/api/cron/marketing-monthly",
+      "schedule": "0 10 2 * *"
     }
   ]
 }
