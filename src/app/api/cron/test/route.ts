@@ -10,6 +10,7 @@ import { generateMonthlyReviewEmail } from '@/lib/email/templates/monthly-review
 import { AlertType, AlertSeverity } from '@prisma/client';
 
 // Test endpoint - sends sample emails to specified address
+// Deployment timestamp: 2025-01-02T12:00:00Z
 export async function GET(req: NextRequest) {
   const testEmail = req.nextUrl.searchParams.get('email') || 'piyoosh.rai@the-algo.com';
   const testType = req.nextUrl.searchParams.get('type') || 'all'; // all, quota, stale, activity, task, monthly
