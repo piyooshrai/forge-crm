@@ -37,6 +37,10 @@ async function main() {
 
   // Clear existing data
   console.log('🧹 Clearing existing data...');
+  await prisma.emailLog.deleteMany();
+  await prisma.quotaAlert.deleteMany();
+  await prisma.userQuota.deleteMany();
+  await prisma.marketingTask.deleteMany();
   await prisma.task.deleteMany();
   await prisma.activity.deleteMany();
   await prisma.dealLineItem.deleteMany();
@@ -570,3 +574,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
