@@ -13,7 +13,16 @@
       "Bash(cmd.exe /c \"cd \"\"D:\\\\Application Development\\\\Forge\\\\forge\"\" && \"\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\"\" repo create forge-crm --public --source=. --push\")",
       "Bash(npm run build:*)",
       "Bash(git push:*)",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma db seed)",
+      "Bash(npx prisma db push:*)",
+      "Bash(npx prisma studio)",
+      "Bash(npx tsx:*)",
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(curl:*)",
+      "Bash(npx vercel --help:*)",
+      "Bash(npx next build)"
     ]
   }
 }
