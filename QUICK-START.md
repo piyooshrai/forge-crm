@@ -39,3 +39,4 @@ If you just want to see the UI without database:
 2. The app will show errors but should at least load the login page
 3. You won't be able to log in until the database is set up
 
+

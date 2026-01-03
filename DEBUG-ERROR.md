@@ -49,3 +49,4 @@ npx prisma generate
 
 Copy the **exact error message** from the terminal and share it. This will help identify the specific issue.
 
+

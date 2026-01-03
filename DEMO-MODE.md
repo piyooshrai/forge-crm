@@ -44,3 +44,4 @@ When you're ready to connect to a real database:
 
 The app is in **demo mode** - perfect for viewing the UI and design without any backend setup!
 
+

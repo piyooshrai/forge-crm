@@ -632,3 +632,4 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
     </div>
   );
 }
+

@@ -56,3 +56,4 @@ npm install @auth/prisma-adapter bcryptjs @types/bcryptjs tsx --legacy-peer-deps
 ## Note
 The app will compile with the temporary workaround, but authentication won't work until `next-auth` is properly installed and the Providers component is updated.
 
+

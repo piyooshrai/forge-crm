@@ -452,3 +452,4 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     </div>
   );
 }
+
