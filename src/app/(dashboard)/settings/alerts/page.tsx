@@ -675,7 +675,7 @@ export default function AlertSettingsPage() {
         isOpen={isConfigModalOpen}
         onClose={() => { setIsConfigModalOpen(false); setEditingConfig(null); }}
         title={editingConfig ? `Edit ${categoryLabels[editingConfig.alertCategory]}` : 'Edit Alert'}
-        size="md"
+        size="lg"
       >
         {editingConfig && (
           <div className="space-y-4">
