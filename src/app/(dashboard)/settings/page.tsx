@@ -1,6 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import GlassCard from '@/components/GlassCard';
 import SectionHeader from '@/components/SectionHeader';
 
@@ -11,6 +12,7 @@ export default function SettingsPage() {
   const userName = user?.name || 'User';
   const userEmail = user?.email || '';
   const userRole = ((user as any)?.role || 'USER').replace('_', ' ');
+  const isSuperAdmin = (user as any)?.role === 'SUPER_ADMIN';
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 lg:px-8 lg:py-8">
@@ -45,32 +47,47 @@ export default function SettingsPage() {
         </div>
       </GlassCard>
 
-      {/* Coming Soon Card */}
-      <GlassCard variant="secondary" className="p-8 text-center">
-        <div className="flex flex-col items-center">
-          <span className="text-5xl mb-4">⚙️</span>
-          <h3 className="text-xl font-semibold text-white mb-2">Settings - Coming Soon</h3>
-          <p className="text-sm text-white/60 max-w-md">
-            Full settings configuration including user management, pipeline customization,
-            notification preferences, and integrations will be available soon.
-          </p>
-        </div>
+      {/* Admin Section - Only for SUPER_ADMIN */}
+      {isSuperAdmin && (
+        <GlassCard variant="secondary" className="p-6 mb-6">
+          <SectionHeader title="Administration" className="mb-4" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Link href="/settings/users">
+              <div className="rounded-lg bg-white/5 border border-white/10 p-4 hover:bg-white/10 hover:border-cyan-500/30 transition-colors cursor-pointer">
+                <span className="text-2xl mb-2 block">👥</span>
+                <p className="text-sm font-medium text-white">User Management</p>
+                <p className="text-xs text-white/50 mt-1">Add and manage team members</p>
+              </div>
+            </Link>
+            <Link href="/settings/alerts">
+              <div className="rounded-lg bg-white/5 border border-white/10 p-4 hover:bg-white/10 hover:border-cyan-500/30 transition-colors cursor-pointer">
+                <span className="text-2xl mb-2 block">🔔</span>
+                <p className="text-sm font-medium text-white">Alert Management</p>
+                <p className="text-xs text-white/50 mt-1">Configure thresholds and schedules</p>
+              </div>
+            </Link>
+            <div className="rounded-lg bg-white/5 border border-white/10 p-4 opacity-60">
+              <span className="text-2xl mb-2 block">🔗</span>
+              <p className="text-sm font-medium text-white/80">Integrations</p>
+              <p className="text-xs text-white/50 mt-1">Coming soon</p>
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-3 text-left">
-          <div className="rounded-lg bg-white/5 border border-white/10 p-4">
-            <span className="text-2xl mb-2 block">👥</span>
-            <p className="text-sm font-medium text-white/80">User Management</p>
-            <p className="text-xs text-white/50 mt-1">Add and manage team members</p>
+      {/* Preferences Section */}
+      <GlassCard variant="secondary" className="p-6">
+        <SectionHeader title="Preferences" className="mb-4" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-lg bg-white/5 border border-white/10 p-4 opacity-60">
+            <span className="text-2xl mb-2 block">🎨</span>
+            <p className="text-sm font-medium text-white/80">Appearance</p>
+            <p className="text-xs text-white/50 mt-1">Theme and display settings - Coming soon</p>
           </div>
-          <div className="rounded-lg bg-white/5 border border-white/10 p-4">
-            <span className="text-2xl mb-2 block">🔔</span>
-            <p className="text-sm font-medium text-white/80">Notifications</p>
-            <p className="text-xs text-white/50 mt-1">Configure email and alerts</p>
-          </div>
-          <div className="rounded-lg bg-white/5 border border-white/10 p-4">
-            <span className="text-2xl mb-2 block">🔗</span>
-            <p className="text-sm font-medium text-white/80">Integrations</p>
-            <p className="text-xs text-white/50 mt-1">Connect external services</p>
+          <div className="rounded-lg bg-white/5 border border-white/10 p-4 opacity-60">
+            <span className="text-2xl mb-2 block">📧</span>
+            <p className="text-sm font-medium text-white/80">Email Preferences</p>
+            <p className="text-xs text-white/50 mt-1">Notification settings - Coming soon</p>
           </div>
         </div>
       </GlassCard>

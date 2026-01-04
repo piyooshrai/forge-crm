@@ -136,15 +136,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  leadsOwned    Lead[]         @relation("LeadOwner")
-  dealsOwned    Deal[]         @relation("DealOwner")
-  activities    Activity[]
-  tasks         Task[]
-  dealLineItems DealLineItem[]
-  emailLogs      EmailLog[]
-  quotas         UserQuota[]
-  quotaAlerts    QuotaAlert[]
-  marketingTasks MarketingTask[]
+  leadsOwned      Lead[]               @relation("LeadOwner")
+  dealsOwned      Deal[]               @relation("DealOwner")
+  activities      Activity[]
+  tasks           Task[]
+  dealLineItems   DealLineItem[]
+  emailLogs       EmailLog[]
+  quotas          UserQuota[]
+  quotaAlerts     QuotaAlert[]
+  marketingTasks  MarketingTask[]
+  alertExclusions UserAlertExclusion[]
 
   @@map("users")
 }
@@ -324,6 +325,62 @@ model QuotaAlert {
   @@unique([userId, alertType, period])
   @@index([userId])
   @@map("quota_alerts")
+}
+
+// ============ ALERT CONFIGURATION ============
+
+enum AlertCategory {
+  QUOTA
+  STALE
+  ACTIVITY
+  TASK
+  MARKETING
+  MONTHLY
+}
+
+model AlertConfig {
+  id              String        @id @default(cuid())
+  alertCategory   AlertCategory
+  enabled         Boolean       @default(true)
+  schedule        String        @default("0 9 * * 1-5") // cron format, default 9am Mon-Fri
+  redThreshold    Float?        // e.g., <50% for quota, >14 days for stale
+  yellowThreshold Float?        // e.g., <80% for quota, >7 days for stale
+  greenThreshold  Float?        // e.g., >=100% for quota
+  ccRecipients    String[]      @default([])
+  bccAdmin        Boolean       @default(false)
+  testMode        Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([alertCategory])
+  @@map("alert_configs")
+}
+
+model GlobalAlertSettings {
+  id              String   @id @default(cuid())
+  fromEmail       String   @default("alerts@forge-crm.com")
+  bccAllToAdmin   Boolean  @default(false)
+  adminEmail      String   @default("admin@forge-crm.com")
+  testMode        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("global_alert_settings")
+}
+
+model UserAlertExclusion {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([startDate, endDate])
+  @@map("user_alert_exclusions")
 }
 
 // ============ MARKETING TASKS ============
