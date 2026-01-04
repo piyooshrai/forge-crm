@@ -93,12 +93,15 @@ export default function LeadsPage() {
   const { showToast } = useToast();
   const { data: session } = useSession();
   const [leads, setLeads] = useState<ApiLead[]>([]);
+  const [users, setUsers] = useState<{ id: string; name: string; role: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [regionFilter, setRegionFilter] = useState<string>('all');
+  const [salesRepFilter, setSalesRepFilter] = useState<string>('all');
+  const [marketingRepFilter, setMarketingRepFilter] = useState<string>('all');
   const [showMineOnly, setShowMineOnly] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -124,10 +127,18 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/leads');
-      if (!res.ok) throw new Error('Failed to fetch leads');
-      const data = await res.json();
-      setLeads(data);
+      const [leadsRes, usersRes] = await Promise.all([
+        fetch('/api/leads'),
+        fetch('/api/users'),
+      ]);
+      if (!leadsRes.ok) throw new Error('Failed to fetch leads');
+      const leadsData = await leadsRes.json();
+      setLeads(leadsData);
+
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        setUsers(usersData);
+      }
     } catch (error) {
       showToast('Failed to load leads', 'error');
     } finally {
@@ -147,11 +158,23 @@ export default function LeadsPage() {
       const matchesSource = sourceFilter === 'all' || lead.source === sourceApiMap[sourceFilter as LeadSource];
       const matchesRegion =
         regionFilter === 'all' || lead.regionTags.includes(regionFilter);
+      const matchesSalesRep = salesRepFilter === 'all' || lead.ownerId === salesRepFilter;
+      const matchesMarketingRep = marketingRepFilter === 'all' || lead.marketingRepId === marketingRepFilter;
       const matchesMine = !showMineOnly || lead.ownerId === currentUserId;
 
-      return matchesSearch && matchesStatus && matchesSource && matchesRegion && matchesMine;
+      return matchesSearch && matchesStatus && matchesSource && matchesRegion && matchesSalesRep && matchesMarketingRep && matchesMine;
     });
-  }, [leads, searchTerm, statusFilter, sourceFilter, regionFilter, showMineOnly, currentUserId]);
+  }, [leads, searchTerm, statusFilter, sourceFilter, regionFilter, salesRepFilter, marketingRepFilter, showMineOnly, currentUserId]);
+
+  // Get sales reps and marketing reps for filter dropdowns
+  const salesReps = useMemo(() =>
+    users.filter(u => u.role === 'SALES_REP' || u.role === 'SUPER_ADMIN'),
+    [users]
+  );
+  const marketingReps = useMemo(() =>
+    users.filter(u => u.role === 'MARKETING_REP' || u.role === 'SUPER_ADMIN'),
+    [users]
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,6 +231,79 @@ export default function LeadsPage() {
     }));
   };
 
+  const handleDeleteLead = async (leadId: string) => {
+    if (!confirm('Are you sure you want to delete this lead?')) return;
+
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete lead');
+      setLeads(leads.filter(l => l.id !== leadId));
+      showToast('Lead deleted', 'success');
+    } catch (error) {
+      showToast('Failed to delete lead', 'error');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const count = filteredLeads.length;
+    if (count === 0) {
+      showToast('No leads to delete', 'error');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${count} lead(s)? This cannot be undone.`)) return;
+
+    try {
+      const deletePromises = filteredLeads.map(lead =>
+        fetch(`/api/leads/${lead.id}`, { method: 'DELETE' })
+      );
+      await Promise.all(deletePromises);
+      fetchLeads();
+      showToast(`${count} leads deleted`, 'success');
+    } catch (error) {
+      showToast('Failed to delete leads', 'error');
+    }
+  };
+
+  // Edit/Reassign modal state
+  const [editingLead, setEditingLead] = useState<ApiLead | null>(null);
+  const [editForm, setEditForm] = useState({
+    ownerId: '',
+    marketingRepId: '',
+  });
+
+  const openEditModal = (lead: ApiLead) => {
+    setEditingLead(lead);
+    setEditForm({
+      ownerId: lead.ownerId,
+      marketingRepId: lead.marketingRepId || '',
+    });
+  };
+
+  const handleReassign = async () => {
+    if (!editingLead) return;
+
+    try {
+      const res = await fetch(`/api/leads/${editingLead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerId: editForm.ownerId,
+          marketingRepId: editForm.marketingRepId || null,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to update lead');
+
+      const updatedLead = await res.json();
+      setLeads(leads.map(l => l.id === updatedLead.id ? updatedLead : l));
+      setEditingLead(null);
+      showToast('Lead updated', 'success');
+    } catch (error) {
+      showToast('Failed to update lead', 'error');
+    }
+  };
+
   if (loading) {
     return (
       <div className="mx-auto max-w-[1920px] px-4 py-6 lg:px-8 lg:py-8">
@@ -224,7 +320,14 @@ export default function LeadsPage() {
     <div className="mx-auto max-w-[1920px] px-4 py-6 lg:px-8 lg:py-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <SectionHeader title="Leads" subtitle={`${filteredLeads.length} leads`} />
-        <Button onClick={() => setIsModalOpen(true)}>+ New Lead</Button>
+        <div className="flex gap-2">
+          {filteredLeads.length > 0 && (
+            <Button variant="secondary" onClick={handleDeleteAll} className="!bg-red-600/20 !text-red-400 !border-red-600/30 hover:!bg-red-600/30">
+              Delete All
+            </Button>
+          )}
+          <Button onClick={() => setIsModalOpen(true)}>+ New Lead</Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -276,6 +379,34 @@ export default function LeadsPage() {
                 </option>
               ))}
             </select>
+            {salesReps.length > 0 && (
+              <select
+                value={salesRepFilter}
+                onChange={(e) => setSalesRepFilter(e.target.value)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-cyan-500/30 focus:outline-none"
+              >
+                <option value="all" className="bg-[#1a1f2e]">All Sales Reps</option>
+                {salesReps.map((rep) => (
+                  <option key={rep.id} value={rep.id} className="bg-[#1a1f2e]">
+                    {rep.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {marketingReps.length > 0 && (
+              <select
+                value={marketingRepFilter}
+                onChange={(e) => setMarketingRepFilter(e.target.value)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-cyan-500/30 focus:outline-none"
+              >
+                <option value="all" className="bg-[#1a1f2e]">All Marketing Reps</option>
+                {marketingReps.map((rep) => (
+                  <option key={rep.id} value={rep.id} className="bg-[#1a1f2e]">
+                    {rep.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               onClick={() => setShowMineOnly(!showMineOnly)}
               className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
@@ -316,6 +447,9 @@ export default function LeadsPage() {
                 </th>
                 <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-white/50 md:table-cell">
                   Created
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-white/50">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -359,6 +493,22 @@ export default function LeadsPage() {
                   </td>
                   <td className="hidden px-4 py-3 text-sm text-white/50 md:table-cell">
                     {formatDate(new Date(lead.createdAt))}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => openEditModal(lead)}
+                        className="text-xs text-cyan-400 hover:text-cyan-300"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLead(lead.id)}
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -459,6 +609,51 @@ export default function LeadsPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Edit/Reassign Modal */}
+      <Modal isOpen={!!editingLead} onClose={() => setEditingLead(null)} title="Edit Lead" size="md">
+        {editingLead && (
+          <div className="space-y-4">
+            <div className="p-3 bg-white/5 rounded-lg">
+              <p className="text-sm text-white/50">Lead</p>
+              <p className="text-white font-medium">{editingLead.company}</p>
+              <p className="text-sm text-white/60">{editingLead.name}</p>
+            </div>
+
+            <SelectInput
+              label="Sales Rep"
+              value={editForm.ownerId}
+              onChange={(e) => setEditForm({ ...editForm, ownerId: e.target.value })}
+              options={salesReps.map((rep) => ({ value: rep.id, label: rep.name }))}
+            />
+
+            <div>
+              <label className="block text-sm font-medium text-white/70 mb-2">Marketing Rep</label>
+              <select
+                value={editForm.marketingRepId}
+                onChange={(e) => setEditForm({ ...editForm, marketingRepId: e.target.value })}
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white focus:border-cyan-500/30 focus:outline-none"
+              >
+                <option value="" className="bg-[#1a1f2e]">None</option>
+                {marketingReps.map((rep) => (
+                  <option key={rep.id} value={rep.id} className="bg-[#1a1f2e]">
+                    {rep.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button type="button" variant="secondary" onClick={() => setEditingLead(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleReassign}>
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -72,6 +72,9 @@ export async function PATCH(
       owner: {
         select: { id: true, name: true, email: true },
       },
+      marketingRep: {
+        select: { id: true, name: true, email: true },
+      },
     },
   });
 
