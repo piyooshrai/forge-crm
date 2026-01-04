@@ -417,6 +417,22 @@ export default function LeadsPage() {
             >
               {showMineOnly ? 'My Leads' : 'All Leads'}
             </button>
+            {(searchTerm || statusFilter !== 'all' || sourceFilter !== 'all' || regionFilter !== 'all' || salesRepFilter !== 'all' || marketingRepFilter !== 'all' || showMineOnly) && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('all');
+                  setSourceFilter('all');
+                  setRegionFilter('all');
+                  setSalesRepFilter('all');
+                  setMarketingRepFilter('all');
+                  setShowMineOnly(false);
+                }}
+                className="px-3 py-2 text-sm rounded-lg border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         </div>
       </GlassCard>

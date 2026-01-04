@@ -388,6 +388,19 @@ export default function MarketingTasksPage() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
+
+        {(filterType || filterStatus || filterOutcome) && (
+          <button
+            onClick={() => {
+              setFilterType('');
+              setFilterStatus('');
+              setFilterOutcome('');
+            }}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300 hover:bg-slate-700"
+          >
+            Reset Filters
+          </button>
+        )}
       </div>
 
       {/* Tasks List */}

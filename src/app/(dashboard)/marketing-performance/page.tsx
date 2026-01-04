@@ -237,6 +237,18 @@ export default function MarketingPerformancePage() {
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
           </select>
+          {(statsFilterRep || statsFilterProduct || days !== 30) && (
+            <button
+              onClick={() => {
+                setStatsFilterRep('');
+                setStatsFilterProduct('');
+                setDays(30);
+              }}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300 hover:bg-slate-700"
+            >
+              Reset
+            </button>
+          )}
         </div>
       </div>
 
@@ -439,6 +451,21 @@ export default function MarketingPerformancePage() {
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+          )}
+
+          {(filterRep || filterType || filterOutcome || filterLeadGenerated || filterProduct) && (
+            <button
+              onClick={() => {
+                setFilterRep('');
+                setFilterType('');
+                setFilterOutcome('');
+                setFilterLeadGenerated('');
+                setFilterProduct('');
+              }}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300 hover:bg-slate-700"
+            >
+              Reset
+            </button>
           )}
         </div>
 

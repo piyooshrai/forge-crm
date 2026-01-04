@@ -328,6 +328,18 @@ function DealsContent() {
             >
               {showMineOnly ? 'My Deals' : 'All Deals'}
             </button>
+            {(searchTerm || pipelineParam !== 'IT_SERVICES' || showMineOnly) && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setPipeline('IT_SERVICES');
+                  setShowMineOnly(false);
+                }}
+                className="px-3 py-1.5 text-sm rounded-lg border border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         </div>
       </GlassCard>
