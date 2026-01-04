@@ -137,7 +137,7 @@ export default function LeadsPage() {
 
       if (usersRes.ok) {
         const usersData = await usersRes.json();
-        setUsers(usersData);
+        setUsers(usersData.users || []);
       }
     } catch (error) {
       showToast('Failed to load leads', 'error');
