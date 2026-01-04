@@ -84,11 +84,22 @@ export async function GET(req: NextRequest) {
   const bestPerforming = sortedBySuccess.filter(t => t.successRate > 0).slice(0, 3);
   const worstPerforming = sortedBySuccess.filter(t => t.count >= 3 && t.successRate < 30).slice(-3).reverse();
 
-  // Performance by rep (for SUPER_ADMIN)
+  // Performance by rep (for SUPER_ADMIN) - always fetch all reps for dropdown
   let byRep: any[] = [];
-  if (user.role === 'SUPER_ADMIN' && !userId) {
-    const repMap = new Map<string, { name: string; tasks: typeof tasks }>();
-    tasks.forEach(t => {
+  if (user.role === 'SUPER_ADMIN') {
+    // Get all marketing tasks in period (unfiltered by user) to build rep list
+    const allTasksInPeriod = await prisma.marketingTask.findMany({
+      where: {
+        taskDate: { gte: startDate },
+        ...(productId && { productId }),
+      },
+      include: {
+        user: { select: { id: true, name: true } },
+      },
+    });
+
+    const repMap = new Map<string, { name: string; tasks: typeof allTasksInPeriod }>();
+    allTasksInPeriod.forEach(t => {
       const key = t.userId;
       if (!repMap.has(key)) {
         repMap.set(key, { name: t.user.name, tasks: [] });
