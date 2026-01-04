@@ -118,16 +118,12 @@ export default function LoginPage() {
           {/* Company Logo */}
           <div className="flex justify-center mb-8">
             <Image
-              src="/logos/the-algorithm.png"
+              src="/logos/JUST_THE_LOGO_white.png"
               alt="The Algorithm"
               width={120}
               height={120}
               className="object-contain"
               priority
-              onError={(e) => {
-                // Hide image if not found
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
             />
           </div>
 
