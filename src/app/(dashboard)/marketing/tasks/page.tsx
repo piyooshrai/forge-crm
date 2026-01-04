@@ -206,6 +206,53 @@ export default function MarketingTasksPage() {
     setShowNewTask(true);
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+
+    try {
+      const res = await fetch(`/api/marketing-tasks/${taskId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete task');
+      }
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const count = tasks.filter(t => !t.isTemplate).length;
+    if (count === 0) {
+      alert('No tasks to delete');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${count} task(s)? This cannot be undone.`)) return;
+
+    try {
+      const params = new URLSearchParams();
+      if (filterType) params.append('type', filterType);
+      if (filterOutcome) params.append('outcome', filterOutcome);
+      if (filterStatus) params.append('status', filterStatus);
+
+      const res = await fetch(`/api/marketing-tasks?${params.toString()}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Failed to delete tasks:', error);
+    }
+  };
+
   const getOutcomeColor = (outcome?: string) => {
     switch (outcome) {
       case 'SUCCESS': return 'text-green-400';
@@ -231,12 +278,22 @@ export default function MarketingTasksPage() {
     <div className="p-8 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-white">Marketing Tasks</h1>
-        <button
-          onClick={() => setShowNewTask(true)}
-          className="px-4 py-2 bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700"
-        >
-          New Task
-        </button>
+        <div className="flex gap-2">
+          {tasks.filter(t => !t.isTemplate).length > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              className="px-4 py-2 bg-red-600/20 text-red-400 text-sm font-medium hover:bg-red-600/30 border border-red-600/30"
+            >
+              Delete All
+            </button>
+          )}
+          <button
+            onClick={() => setShowNewTask(true)}
+            className="px-4 py-2 bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700"
+          >
+            New Task
+          </button>
+        </div>
       </div>
 
       {/* Weekly Summary */}
@@ -378,6 +435,14 @@ export default function MarketingTasksPage() {
                           className="text-xs text-green-400 hover:text-green-300"
                         >
                           Save Template
+                        </button>
+                      )}
+                      {!task.isTemplate && (
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="text-xs text-red-400 hover:text-red-300"
+                        >
+                          Delete
                         </button>
                       )}
                     </div>

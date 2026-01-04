@@ -53,6 +53,43 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ tasks, total });
 }
 
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email! },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const type = searchParams.get('type') as MarketingTaskType | null;
+  const status = searchParams.get('status') as MarketingTaskStatus | null;
+  const outcome = searchParams.get('outcome') as MarketingTaskOutcome | null;
+
+  const where: any = {
+    isTemplate: false, // Never delete templates
+  };
+
+  // MARKETING_REP can only delete own tasks
+  if (user.role !== 'SUPER_ADMIN') {
+    where.userId = user.id;
+  }
+
+  if (type) where.type = type;
+  if (status) where.status = status;
+  if (outcome) where.outcome = outcome;
+
+  const result = await prisma.marketingTask.deleteMany({ where });
+
+  return NextResponse.json({ deleted: result.count });
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {
