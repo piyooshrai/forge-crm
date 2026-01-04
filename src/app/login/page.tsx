@@ -3,6 +3,19 @@
 import { signIn } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+
+const PRODUCTS = [
+  { name: 'BookB', logo: '/logos/products/bookb.png' },
+  { name: 'GymWyse', logo: '/logos/products/gymwyse.png' },
+  { name: 'SchoolsOut', logo: '/logos/products/schoolsout.png' },
+  { name: 'Vizier', logo: '/logos/products/vizier.png' },
+  { name: 'Claire', logo: '/logos/products/claire.png' },
+  { name: 'clinIQ', logo: '/logos/products/cliniq.png' },
+  { name: 'Regue', logo: '/logos/products/regue.png' },
+  { name: 'SentienGuard', logo: '/logos/products/sentienguard.png' },
+  { name: 'ProofGrid', logo: '/logos/products/proofgrid.png' },
+];
 
 interface Stats {
   currentMonth: string;
@@ -102,8 +115,24 @@ export default function LoginPage() {
       {/* Left side - Login form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-sm">
+          {/* Company Logo */}
+          <div className="flex justify-center mb-8">
+            <Image
+              src="/logos/the-algorithm.png"
+              alt="The Algorithm"
+              width={120}
+              height={120}
+              className="object-contain"
+              priority
+              onError={(e) => {
+                // Hide image if not found
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+
           <div className="p-6 bg-slate-900/50 border border-slate-800">
-            <h1 className="text-lg font-bold text-gray-200 mb-1">The Algorithm's Forge</h1>
+            <h1 className="text-lg font-bold text-gray-200 mb-1">Forge</h1>
             <p className="text-xs text-gray-500 mb-6">Sign in to continue</p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -173,6 +202,34 @@ export default function LoginPage() {
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
             </form>
+          </div>
+
+          {/* Product Logos */}
+          <div className="mt-8">
+            <p className="text-xs text-gray-600 text-center mb-4 uppercase tracking-wider">Our Products</p>
+            <div className="flex flex-wrap justify-center gap-4">
+              {PRODUCTS.map((product) => (
+                <div
+                  key={product.name}
+                  className="opacity-50 hover:opacity-70 transition-opacity"
+                  title={product.name}
+                >
+                  <Image
+                    src={product.logo}
+                    alt={product.name}
+                    width={40}
+                    height={40}
+                    className="object-contain grayscale"
+                    onError={(e) => {
+                      // Show text fallback if image not found
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.parentElement!.innerHTML = `<span class="text-xs text-gray-600">${product.name}</span>`;
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
