@@ -1,421 +1,561 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import GlassCard from '@/components/GlassCard';
-import StatTile from '@/components/StatTile';
 import SectionHeader from '@/components/SectionHeader';
-import { formatCurrency, formatDate, stageLabels, type DealStage } from '@/lib/mock-data';
+import { Modal } from '@/components/ui';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+  ScatterChart,
+  Scatter,
+  ReferenceLine,
+  LineChart,
+  Line,
+} from 'recharts';
 
-interface ApiDeal {
-  id: string;
-  name: string;
-  pipeline: string;
-  stage: string;
-  probability: number;
-  amountType: string;
-  amountTotal: number;
-  closeDate: string;
-  owner: { id: string; name: string; email: string };
-  createdAt: string;
+interface TrendPoint {
+  month: string;
+  value: number;
 }
 
-interface ApiLead {
-  id: string;
-  name: string;
-  company: string;
-  source: string;
-  status: string;
-  createdAt: string;
+interface KPIData {
+  current: number;
+  trend: TrendPoint[];
+  status: 'green' | 'yellow' | 'red';
 }
 
-interface ApiTask {
-  id: string;
+interface PersonPerformance {
+  name: string;
+  displayName: string;
+  value: number;
+  type: 'sales' | 'marketing';
+}
+
+interface ChannelPerformance {
+  channel: string;
+  displayName: string;
+  value: number;
+  total: number;
+}
+
+interface EffortVsRoi {
+  channel: string;
+  displayName: string;
+  effort: number;
+  roi: number;
+  leadsCount: number;
+  revenue: number;
+}
+
+interface DashboardData {
+  topSection: {
+    quotaPercent: KPIData;
+    marketingSuccessRate: KPIData;
+    pipelineValue: KPIData;
+  };
+  middleSection: {
+    peoplePerformance: PersonPerformance[];
+    channelPerformance: ChannelPerformance[];
+  };
+  bottomSection: {
+    effortVsRoi: EffortVsRoi[];
+  };
+  alerts: {
+    peopleNeedingAttention: { name: string; value: number; type: string }[];
+    count: number;
+  };
+}
+
+const formatCurrency = (value: number) => {
+  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+  return `$${value.toFixed(0)}`;
+};
+
+const getBarColor = (value: number, thresholds: { green: number; yellow: number }) => {
+  if (value >= thresholds.green) return '#22c55e';
+  if (value >= thresholds.yellow) return '#eab308';
+  return '#ef4444';
+};
+
+const getStatusColor = (status: 'green' | 'yellow' | 'red') => {
+  switch (status) {
+    case 'green': return '#22c55e';
+    case 'yellow': return '#eab308';
+    case 'red': return '#ef4444';
+  }
+};
+
+// Mini Sparkline Component
+function Sparkline({ data, color }: { data: TrendPoint[]; color: string }) {
+  return (
+    <div className="h-12 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={color}
+            strokeWidth={2}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// KPI Card Component
+function KPICard({
+  title,
+  value,
+  unit,
+  trend,
+  status,
+  format = 'percent',
+}: {
   title: string;
-  description: string | null;
-  dueDate: string | null;
-  completed: boolean;
-  user: { name: string };
-  lead?: { company: string } | null;
-  deal?: { name: string } | null;
+  value: number;
+  unit?: string;
+  trend: TrendPoint[];
+  status: 'green' | 'yellow' | 'red';
+  format?: 'percent' | 'currency';
+}) {
+  const displayValue = format === 'currency' ? formatCurrency(value) : `${value}%`;
+  const statusColor = getStatusColor(status);
+
+  return (
+    <GlassCard variant="primary" className="p-6 flex-1">
+      <div className="flex items-start justify-between mb-4">
+        <p className="text-sm text-white/50 font-medium">{title}</p>
+        <div
+          className="h-3 w-3 rounded-full"
+          style={{ backgroundColor: statusColor }}
+        />
+      </div>
+      <p className="text-4xl font-bold text-white mb-2">
+        {displayValue}
+        {unit && <span className="text-lg text-white/50 ml-1">{unit}</span>}
+      </p>
+      <Sparkline data={trend} color={statusColor} />
+      <p className="text-xs text-white/40 mt-2">6-month trend</p>
+    </GlassCard>
+  );
 }
 
-interface ApiActivity {
-  id: string;
-  type: string;
-  subject: string;
-  description: string | null;
-  user: { name: string };
-  lead?: { company: string } | null;
-  deal?: { name: string } | null;
-  createdAt: string;
+// Horizontal Bar Chart Component
+function HorizontalBarChart({
+  data,
+  title,
+  thresholds,
+}: {
+  data: { name: string; value: number }[];
+  title: string;
+  thresholds: { green: number; yellow: number };
+}) {
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-gray-900 border border-white/20 rounded-lg px-3 py-2 shadow-lg">
+          <p className="text-white text-sm font-medium">{payload[0].payload.name}</p>
+          <p className="text-cyan-400 text-sm">{payload[0].value}%</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <GlassCard variant="secondary" className="p-6 flex-1">
+      <SectionHeader title={title} className="mb-4" />
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={data}
+            layout="vertical"
+            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+          >
+            <XAxis
+              type="number"
+              domain={[0, Math.max(100, ...data.map(d => d.value))]}
+              tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+              tickLine={false}
+            />
+            <YAxis
+              type="category"
+              dataKey="name"
+              tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+              width={75}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+            <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24}>
+              {data.map((entry, index) => (
+                <Cell key={index} fill={getBarColor(entry.value, thresholds)} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex gap-4 mt-4 text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
+          <span className="text-white/50">{`>${thresholds.green}%`}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+          <span className="text-white/50">{`${thresholds.yellow}-${thresholds.green}%`}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+          <span className="text-white/50">{`<${thresholds.yellow}%`}</span>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+// Scatter Plot Component
+function EffortVsRoiChart({ data }: { data: EffortVsRoi[] }) {
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const item = payload[0].payload;
+      return (
+        <div className="bg-gray-900 border border-white/20 rounded-lg px-3 py-2 shadow-lg">
+          <p className="text-white text-sm font-medium mb-1">{item.displayName}</p>
+          <p className="text-white/70 text-xs">Effort: {item.effort}%</p>
+          <p className="text-white/70 text-xs">ROI: {item.roi}%</p>
+          <p className="text-cyan-400 text-xs mt-1">Revenue: {formatCurrency(item.revenue)}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Custom dot renderer to color based on quadrant
+  const renderDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    const isHighRoi = payload.roi > payload.effort;
+    const color = isHighRoi ? '#22c55e' : '#ef4444';
+
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={8}
+        fill={color}
+        fillOpacity={0.8}
+        stroke={color}
+        strokeWidth={2}
+      />
+    );
+  };
+
+  const maxValue = Math.max(
+    100,
+    ...data.map(d => d.effort),
+    ...data.map(d => d.roi)
+  );
+
+  return (
+    <GlassCard variant="secondary" className="p-6">
+      <SectionHeader title="Effort vs ROI by Channel" className="mb-4" />
+      <div className="h-80">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 20, right: 20, bottom: 40, left: 40 }}>
+            <XAxis
+              type="number"
+              dataKey="effort"
+              domain={[0, maxValue]}
+              name="Effort"
+              tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+              tickLine={false}
+              label={{
+                value: '% of Team Effort',
+                position: 'bottom',
+                offset: 20,
+                fill: 'rgba(255,255,255,0.5)',
+                fontSize: 12,
+              }}
+            />
+            <YAxis
+              type="number"
+              dataKey="roi"
+              domain={[0, maxValue]}
+              name="ROI"
+              tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+              tickLine={false}
+              label={{
+                value: '% of Revenue',
+                angle: -90,
+                position: 'left',
+                offset: 10,
+                fill: 'rgba(255,255,255,0.5)',
+                fontSize: 12,
+              }}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+            <ReferenceLine
+              segment={[{ x: 0, y: 0 }, { x: maxValue, y: maxValue }]}
+              stroke="rgba(255,255,255,0.3)"
+              strokeDasharray="5 5"
+              label={{
+                value: 'Break Even',
+                position: 'insideTopRight',
+                fill: 'rgba(255,255,255,0.4)',
+                fontSize: 10,
+              }}
+            />
+            <Scatter
+              name="Channels"
+              data={data}
+              shape={renderDot}
+            />
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex justify-center gap-6 mt-4 text-xs">
+        <div className="flex items-center gap-1.5">
+          <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
+          <span className="text-white/50">High ROI (above line)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+          <span className="text-white/50">Wasted Effort (below line)</span>
+        </div>
+      </div>
+      {/* Channel labels */}
+      <div className="flex flex-wrap gap-2 mt-4 justify-center">
+        {data.map((item, index) => (
+          <span
+            key={index}
+            className="text-xs px-2 py-1 rounded bg-white/5 text-white/60"
+          >
+            {item.displayName}
+          </span>
+        ))}
+      </div>
+    </GlassCard>
+  );
+}
+
+// Alert Badge Component
+function AlertBadge({
+  count,
+  onClick,
+}: {
+  count: number;
+  onClick: () => void;
+}) {
+  if (count === 0) return null;
+
+  return (
+    <button
+      onClick={onClick}
+      className="fixed top-20 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 hover:bg-red-500/30 transition-colors shadow-lg"
+    >
+      <span className="text-lg">Warning</span>
+      <span className="font-medium">{count} people need attention</span>
+    </button>
+  );
+}
+
+// Alert Modal Component
+function AlertModal({
+  isOpen,
+  onClose,
+  people,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  people: { name: string; value: number; type: string }[];
+}) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="People Needing Attention" size="md">
+      <div className="space-y-3">
+        {people.map((person, index) => (
+          <div
+            key={index}
+            className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10"
+          >
+            <div>
+              <p className="text-white font-medium">{person.name}</p>
+              <p className="text-xs text-white/50 capitalize">{person.type}</p>
+            </div>
+            <div className="text-right">
+              <p className={`text-lg font-bold ${person.value < 50 ? 'text-red-400' : 'text-yellow-400'}`}>
+                {person.value}%
+              </p>
+              <p className="text-xs text-white/50">
+                {person.type === 'sales' ? 'Quota' : 'Success Rate'}
+              </p>
+            </div>
+          </div>
+        ))}
+        {people.length === 0 && (
+          <p className="text-white/50 text-center py-4">No one needs attention</p>
+        )}
+      </div>
+    </Modal>
+  );
 }
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [deals, setDeals] = useState<ApiDeal[]>([]);
-  const [leads, setLeads] = useState<ApiLead[]>([]);
-  const [tasks, setTasks] = useState<ApiTask[]>([]);
-  const [activities, setActivities] = useState<ApiActivity[]>([]);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
 
-  // Redirect marketing reps to their page
+  // Redirect non-SUPER_ADMIN users
   useEffect(() => {
-    if (status === 'authenticated' && (session?.user as any)?.role === 'MARKETING_REP') {
-      router.replace('/marketing/tasks');
+    if (status === 'authenticated') {
+      const userRole = (session?.user as any)?.role;
+      if (userRole === 'MARKETING_REP') {
+        router.replace('/marketing/tasks');
+      } else if (userRole === 'SALES_REP') {
+        router.replace('/deals');
+      }
     }
   }, [session, status, router]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dealsRes, leadsRes, tasksRes, activitiesRes] = await Promise.all([
-          fetch('/api/deals'),
-          fetch('/api/leads'),
-          fetch('/api/tasks'),
-          fetch('/api/activities'),
-        ]);
-
-        if (dealsRes.ok) setDeals(await dealsRes.json());
-        if (leadsRes.ok) setLeads(await leadsRes.json());
-        if (tasksRes.ok) setTasks(await tasksRes.json());
-        if (activitiesRes.ok) setActivities(await activitiesRes.json());
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
+        const res = await fetch('/api/dashboard/ceo');
+        if (!res.ok) {
+          if (res.status === 403) {
+            setError('Access denied. This dashboard is for administrators only.');
+            return;
+          }
+          throw new Error('Failed to fetch dashboard data');
+        }
+        const dashboardData = await res.json();
+        setData(dashboardData);
+      } catch (err) {
+        console.error('Dashboard error:', err);
+        setError('Failed to load dashboard data');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, []);
+    if (status === 'authenticated') {
+      fetchData();
+    }
+  }, [status]);
 
-  // Calculate metrics
-  const metrics = useMemo(() => {
-    const totalPipeline = deals
-      .filter(d => !['CLOSED_WON', 'CLOSED_LOST'].includes(d.stage))
-      .reduce((sum, d) => sum + d.amountTotal, 0);
-
-    const openDeals = deals.filter(d => !['CLOSED_WON', 'CLOSED_LOST'].includes(d.stage)).length;
-    const dealsInNegotiation = deals.filter(d => d.stage === 'NEGOTIATION').length;
-
-    const thisWeek = new Date();
-    thisWeek.setDate(thisWeek.getDate() - 7);
-    const newLeadsThisWeek = leads.filter(l => new Date(l.createdAt) >= thisWeek).length;
-
-    const closedWon = deals.filter(d => d.stage === 'CLOSED_WON').length;
-    const closedTotal = deals.filter(d => ['CLOSED_WON', 'CLOSED_LOST'].includes(d.stage)).length;
-    const conversionRate = closedTotal > 0 ? Math.round((closedWon / closedTotal) * 100) : 0;
-
-    return {
-      totalPipeline,
-      newLeads: leads.length,
-      newLeadsThisWeek,
-      openDeals,
-      dealsInNegotiation,
-      conversionRate,
-    };
-  }, [deals, leads]);
-
-  // Deal stages summary
-  const dealStages = useMemo(() => {
-    const stages: DealStage[] = ['QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON'];
-    return stages.map(stage => {
-      const stageDeals = deals.filter(d => d.stage === stage);
-      const count = stageDeals.length;
-      const total = deals.filter(d => !['CLOSED_LOST'].includes(d.stage)).length;
-      const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-      return {
-        stage: stageLabels[stage],
-        value: percentage,
-        color: stage === 'CLOSED_WON' ? '#a5f3fc' : stage === 'NEGOTIATION' ? '#7dd3fc' : stage === 'PROPOSAL' ? '#67e8f9' : '#5ee7df',
-      };
-    });
-  }, [deals]);
-
-  // Tasks due today
-  const tasksDueToday = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    return tasks
-      .filter(t => !t.completed && t.dueDate)
-      .filter(t => {
-        const due = new Date(t.dueDate!);
-        due.setHours(0, 0, 0, 0);
-        return due <= tomorrow;
-      })
-      .slice(0, 5)
-      .map(t => ({
-        id: t.id,
-        task: t.title,
-        context: t.deal?.name || t.lead?.company || '',
-        time: t.dueDate ? formatDate(new Date(t.dueDate)) : 'No due date',
-      }));
-  }, [tasks]);
-
-  // Top deals
-  const topDeals = useMemo(() => {
-    return deals
-      .filter(d => !['CLOSED_WON', 'CLOSED_LOST'].includes(d.stage))
-      .sort((a, b) => b.amountTotal - a.amountTotal)
-      .slice(0, 4)
-      .map(d => ({
-        id: d.id,
-        company: d.name,
-        value: formatCurrency(d.amountTotal),
-        stage: stageLabels[d.stage as DealStage] || d.stage,
-      }));
-  }, [deals]);
-
-  // Recent activity
-  const recentActivity = useMemo(() => {
-    const getTimeAgo = (date: string) => {
-      const now = new Date();
-      const actDate = new Date(date);
-      const diffMs = now.getTime() - actDate.getTime();
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-      if (diffHours < 1) return 'Just now';
-      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-      if (diffDays === 1) return '1 day ago';
-      return `${diffDays} days ago`;
-    };
-
-    const activityTypeMap: Record<string, string> = {
-      NOTE: 'Note added',
-      CALL: 'Call logged',
-      MEETING: 'Meeting held',
-      EMAIL: 'Email sent',
-    };
-
-    return activities.slice(0, 8).map(a => ({
-      id: a.id,
-      action: `${activityTypeMap[a.type] || a.type}: ${a.deal?.name || a.lead?.company || a.subject}`,
-      time: getTimeAgo(a.createdAt),
-      type: a.type === 'EMAIL' || a.type === 'NOTE' ? 'info' : 'success',
-    }));
-  }, [activities]);
-
-  if (loading) {
+  if (loading || status === 'loading') {
     return (
       <div className="mx-auto max-w-[1920px] px-6 py-8 lg:px-8">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="animate-pulse space-y-6">
-            <div className="h-64 bg-white/5 rounded-xl"></div>
-            <div className="h-80 bg-white/5 rounded-xl"></div>
+        <div className="animate-pulse space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="h-48 bg-white/5 rounded-xl" />
+            <div className="h-48 bg-white/5 rounded-xl" />
+            <div className="h-48 bg-white/5 rounded-xl" />
           </div>
-          <div className="animate-pulse space-y-6">
-            <div className="h-72 bg-white/5 rounded-xl"></div>
-            <div className="h-48 bg-white/5 rounded-xl"></div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-80 bg-white/5 rounded-xl" />
+            <div className="h-80 bg-white/5 rounded-xl" />
           </div>
-          <div className="animate-pulse space-y-6">
-            <div className="h-56 bg-white/5 rounded-xl"></div>
-            <div className="h-64 bg-white/5 rounded-xl"></div>
-          </div>
+          <div className="h-96 bg-white/5 rounded-xl" />
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="mx-auto max-w-[1920px] px-6 py-8 lg:px-8">
-      {/* 3-Column Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Left Column */}
-        <div className="flex flex-col gap-6">
-          {/* KPI Tiles */}
-          <GlassCard variant="primary" className="p-6">
-            <div className="flex flex-col gap-6">
-              <StatTile
-                label="Total Pipeline"
-                value={formatCurrency(metrics.totalPipeline)}
-                change={`${metrics.openDeals} open deals`}
-              />
-              <div className="h-px bg-white/10" />
-              <StatTile
-                label="New Leads"
-                value={String(metrics.newLeads)}
-                change={`+${metrics.newLeadsThisWeek} this week`}
-              />
-              <div className="h-px bg-white/10" />
-              <StatTile
-                label="Open Deals"
-                value={String(metrics.openDeals)}
-                change={`${metrics.dealsInNegotiation} in negotiation`}
-              />
-            </div>
-          </GlassCard>
-
-          {/* Tasks Due Today */}
-          <GlassCard variant="secondary" className="p-6 flex-1 flex flex-col min-h-0">
-            <SectionHeader title="Upcoming Tasks" className="mb-4 flex-shrink-0" />
-            <div className="flex flex-col gap-4 overflow-y-auto flex-1 min-h-0">
-              {tasksDueToday.length > 0 ? tasksDueToday.map((task) => (
-                <div key={task.id} className="flex items-start justify-between gap-3 py-3">
-                  <div className="flex-1">
-                    <p className="text-sm text-white/80">{task.task}</p>
-                    {task.context && (
-                      <p className="text-xs text-cyan-400/70 mt-0.5">{task.context}</p>
-                    )}
-                    <p className="text-xs text-white/40 mt-1">{task.time}</p>
-                  </div>
-                  <div className="h-1.5 w-1.5 rounded-full bg-cyan-400/30 mt-1.5" />
-                </div>
-              )) : (
-                <p className="text-sm text-white/40 py-4 text-center">No upcoming tasks</p>
-              )}
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Center Column */}
-        <div className="flex flex-col gap-6">
-          {/* Pipeline Summary */}
-          <GlassCard variant="primary" className="p-6">
-            <SectionHeader title="Pipeline by Value" subtitle="Open deals" className="mb-6" />
-            <div className="space-y-4">
-              {['LEAD', 'QUALIFIED', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION'].map(stage => {
-                const stageDeals = deals.filter(d => d.stage === stage);
-                const stageValue = stageDeals.reduce((sum, d) => sum + d.amountTotal, 0);
-                const maxValue = Math.max(...['LEAD', 'QUALIFIED', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION'].map(s =>
-                  deals.filter(d => d.stage === s).reduce((sum, d) => sum + d.amountTotal, 0)
-                ), 1);
-                const percentage = Math.round((stageValue / maxValue) * 100);
-
-                return (
-                  <div key={stage} className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-white/55">{stageLabels[stage as DealStage]}</span>
-                      <span className="text-sm text-cyan-400 font-medium">{formatCurrency(stageValue)}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-cyan-500/80 to-cyan-400 transition-all"
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </GlassCard>
-
-          {/* Deal Stages */}
-          <GlassCard variant="secondary" className="p-6 flex-1">
-            <SectionHeader title="Deal Stages" className="mb-6" />
-            <div className="flex flex-col gap-4">
-              {dealStages.map((stage, index) => (
-                <div key={index} className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-white/55">{stage.stage}</span>
-                    <span className="text-sm text-white/90 font-semibold">{stage.value}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${stage.value}%`,
-                        backgroundColor: stage.color,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Right Column */}
-        <div className="flex flex-col gap-6">
-          {/* Conversion KPI */}
-          <GlassCard variant="primary" className="p-6">
-            <SectionHeader title="Win Rate" className="mb-6" />
-            <div className="flex items-center justify-center">
-              <div className="relative h-48 w-48">
-                <svg className="h-48 w-48 transform -rotate-90">
-                  <circle
-                    cx="96"
-                    cy="96"
-                    r="80"
-                    stroke="rgba(255,255,255,0.1)"
-                    strokeWidth="12"
-                    fill="none"
-                  />
-                  <circle
-                    cx="96"
-                    cy="96"
-                    r="80"
-                    stroke="#5ee7df"
-                    strokeWidth="12"
-                    fill="none"
-                    strokeDasharray={`${2 * Math.PI * 80}`}
-                    strokeDashoffset={`${2 * Math.PI * 80 * (1 - metrics.conversionRate / 100)}`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <p className="text-4xl font-semibold text-white">{metrics.conversionRate}%</p>
-                    <p className="text-sm text-white/40 mt-1">Conversion Rate</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-
-          {/* Top Deals */}
-          <GlassCard variant="secondary" className="p-6 flex-1">
-            <SectionHeader title="Top Deals" className="mb-4" />
-            <div className="flex flex-col gap-4">
-              {topDeals.length > 0 ? topDeals.map((deal) => (
-                <Link href={`/deals/${deal.id}`} key={deal.id} className="block">
-                  <div className="flex flex-col gap-1 py-2 border-b border-white/5 last:border-0 hover:bg-white/5 -mx-2 px-2 rounded transition-colors">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-white">{deal.company}</p>
-                      <p className="text-sm font-semibold text-cyan-400">{deal.value}</p>
-                    </div>
-                    <p className="text-xs text-white/40">{deal.stage}</p>
-                  </div>
-                </Link>
-              )) : (
-                <p className="text-sm text-white/40 py-4 text-center">No open deals</p>
-              )}
-            </div>
-          </GlassCard>
-        </div>
-      </div>
-
-      {/* Bottom Full-Width: Recent Activity */}
-      <div className="mt-6">
-        <GlassCard variant="secondary" className="p-6">
-          <SectionHeader title="Recent Activity" className="mb-6" />
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-            {recentActivity.length > 0 ? recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-start gap-3 py-2">
-                <div className={`h-2 w-2 rounded-full mt-1.5 flex-shrink-0 ${
-                  activity.type === 'success' ? 'bg-cyan-400' :
-                  activity.type === 'warning' ? 'bg-amber-400/60' :
-                  'bg-cyan-400/40'
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white/80 truncate">{activity.action}</p>
-                  <p className="text-xs text-white/40 mt-1">{activity.time}</p>
-                </div>
-              </div>
-            )) : (
-              <p className="text-sm text-white/40 py-4 col-span-4 text-center">No recent activity</p>
-            )}
-          </div>
+  if (error) {
+    return (
+      <div className="mx-auto max-w-[1920px] px-6 py-8 lg:px-8">
+        <GlassCard variant="primary" className="p-8 text-center">
+          <p className="text-red-400 text-lg">{error}</p>
         </GlassCard>
       </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { topSection, middleSection, bottomSection, alerts } = data;
+
+  return (
+    <div className="mx-auto max-w-[1920px] px-6 py-8 lg:px-8">
+      {/* Alert Badge */}
+      <AlertBadge count={alerts.count} onClick={() => setAlertModalOpen(true)} />
+
+      {/* Header */}
+      <div className="mb-8">
+        <SectionHeader
+          title="CEO Performance Dashboard"
+          subtitle="Real-time overview of sales and marketing performance"
+        />
+      </div>
+
+      {/* Top Section: 3 KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <KPICard
+          title="Sales Team Quota"
+          value={topSection.quotaPercent.current}
+          trend={topSection.quotaPercent.trend}
+          status={topSection.quotaPercent.status}
+        />
+        <KPICard
+          title="Marketing Success Rate"
+          value={topSection.marketingSuccessRate.current}
+          trend={topSection.marketingSuccessRate.trend}
+          status={topSection.marketingSuccessRate.status}
+        />
+        <KPICard
+          title="Total Pipeline Value"
+          value={topSection.pipelineValue.current}
+          trend={topSection.pipelineValue.trend}
+          status={topSection.pipelineValue.status}
+          format="currency"
+        />
+      </div>
+
+      {/* Middle Section: 2 Bar Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <HorizontalBarChart
+          title="People Performance"
+          data={middleSection.peoplePerformance.map(p => ({
+            name: p.displayName,
+            value: p.value,
+          }))}
+          thresholds={{ green: 100, yellow: 70 }}
+        />
+        <HorizontalBarChart
+          title="Channel Performance"
+          data={middleSection.channelPerformance.map(c => ({
+            name: c.displayName,
+            value: c.value,
+          }))}
+          thresholds={{ green: 30, yellow: 15 }}
+        />
+      </div>
+
+      {/* Bottom Section: Scatter Plot */}
+      <EffortVsRoiChart data={bottomSection.effortVsRoi} />
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModalOpen}
+        onClose={() => setAlertModalOpen(false)}
+        people={alerts.peopleNeedingAttention}
+      />
     </div>
   );
 }
-
