@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendAlertEmail, RECIPIENTS } from '@/lib/email/ses-client';
-import { getCurrentWeekPeriod } from '@/lib/email/helpers';
+import { getCurrentWeekPeriod, isUserInGracePeriod, getAlertSubject } from '@/lib/email/helpers';
 import { generateMarketingWeeklyEmail, TaskTypeStats, TemplateStats } from '@/lib/email/templates/marketing-weekly';
 import { AlertType, AlertSeverity, MarketingTaskType } from '@prisma/client';
 
@@ -48,6 +48,13 @@ export async function GET(req: NextRequest) {
       where: {
         role: 'MARKETING_REP',
         isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        hiredAt: true,
       },
     });
 
@@ -229,13 +236,16 @@ export async function GET(req: NextRequest) {
         ccRecipients.push(RECIPIENTS.SAM);
       }
 
+      const inGracePeriod = isUserInGracePeriod(user.hiredAt);
+      const subject = getAlertSubject(emailContent.subject, inGracePeriod);
+
       try {
         await sendAlertEmail({
           userId: user.id,
           userEmail: user.email,
           alertType,
           severity,
-          subject: emailContent.subject,
+          subject,
           htmlBody: emailContent.html,
           textBody: emailContent.text,
           ccRecipients,

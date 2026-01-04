@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import ResumeOnboardingBanner from '@/components/ResumeOnboardingBanner';
 
 export default function DashboardLayout({
   children,
@@ -16,6 +17,7 @@ export default function DashboardLayout({
       <Header onMenuClick={() => setSidebarOpen(true)} />
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="pt-16 lg:ml-64">
+        <ResumeOnboardingBanner />
         <div className="min-h-[calc(100vh-4rem)]">{children}</div>
       </main>
     </div>

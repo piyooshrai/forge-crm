@@ -100,3 +100,28 @@ export function getPreviousMonth(): { year: number; month: number; name: string;
     end: previousMonthEnd,
   };
 }
+
+// Grace period: 14 days from hiredAt date
+const GRACE_PERIOD_DAYS = 14;
+
+// Check if user is within their onboarding grace period
+export function isUserInGracePeriod(hiredAt: Date | null): boolean {
+  if (!hiredAt) return false;
+  const gracePeriodEnd = new Date(hiredAt);
+  gracePeriodEnd.setDate(gracePeriodEnd.getDate() + GRACE_PERIOD_DAYS);
+  return new Date() < gracePeriodEnd;
+}
+
+// Get alert subject with optional [ONBOARDING] prefix for users in grace period
+export function getAlertSubject(subject: string, isInGracePeriod: boolean): string {
+  return isInGracePeriod ? `[ONBOARDING] ${subject}` : subject;
+}
+
+// Get days remaining in grace period
+export function getGracePeriodDaysRemaining(hiredAt: Date | null): number {
+  if (!hiredAt) return 0;
+  const gracePeriodEnd = new Date(hiredAt);
+  gracePeriodEnd.setDate(gracePeriodEnd.getDate() + GRACE_PERIOD_DAYS);
+  const remaining = Math.ceil((gracePeriodEnd.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(0, remaining);
+}

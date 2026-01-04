@@ -101,7 +101,28 @@ export default function LoginPage() {
       if (result?.error) {
         setError('Invalid email or password');
       } else {
-        router.push('/dashboard');
+        // Check onboarding status before redirecting
+        try {
+          const onboardingRes = await fetch('/api/onboarding');
+          const onboardingData = await onboardingRes.json();
+
+          if (onboardingRes.ok && !onboardingData.completed) {
+            // User hasn't completed onboarding
+            router.push('/onboarding');
+          } else {
+            // Redirect based on role
+            const redirectPath =
+              onboardingData.role === 'SALES_REP'
+                ? '/deals'
+                : onboardingData.role === 'MARKETING_REP'
+                  ? '/marketing/tasks'
+                  : '/dashboard';
+            router.push(redirectPath);
+          }
+        } catch {
+          // If onboarding check fails, default to dashboard
+          router.push('/dashboard');
+        }
         router.refresh();
       }
     } catch {

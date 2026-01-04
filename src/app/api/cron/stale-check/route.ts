@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendAlertEmail } from '@/lib/email/ses-client';
-import { getCcRecipients, getCurrentPeriod, daysSince } from '@/lib/email/helpers';
+import { getCcRecipients, getCurrentPeriod, daysSince, isUserInGracePeriod, getAlertSubject } from '@/lib/email/helpers';
 import { generateStaleAlertEmail } from '@/lib/email/templates/stale';
 import { AlertType, AlertSeverity, DealStage, LeadStatus } from '@prisma/client';
 
@@ -22,6 +22,13 @@ export async function GET(req: NextRequest) {
     const users = await prisma.user.findMany({
       where: {
         role: { in: ['SALES_REP', 'MARKETING_REP'] },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        hiredAt: true,
       },
     });
 
@@ -90,13 +97,16 @@ export async function GET(req: NextRequest) {
             staleLeads: staleLeadsRed,
           });
 
+          const inGracePeriod = isUserInGracePeriod(user.hiredAt);
+          const subject = getAlertSubject(emailContent.subject, inGracePeriod);
+
           try {
             await sendAlertEmail({
               userId: user.id,
               userEmail: user.email,
               alertType,
               severity: AlertSeverity.RED,
-              subject: emailContent.subject,
+              subject,
               htmlBody: emailContent.html,
               textBody: emailContent.text,
               ccRecipients: getCcRecipients(AlertSeverity.RED),
@@ -133,13 +143,16 @@ export async function GET(req: NextRequest) {
             staleLeads: staleLeadsYellow,
           });
 
+          const inGracePeriod = isUserInGracePeriod(user.hiredAt);
+          const subject = getAlertSubject(emailContent.subject, inGracePeriod);
+
           try {
             await sendAlertEmail({
               userId: user.id,
               userEmail: user.email,
               alertType,
               severity: AlertSeverity.YELLOW,
-              subject: emailContent.subject,
+              subject,
               htmlBody: emailContent.html,
               textBody: emailContent.text,
               ccRecipients: getCcRecipients(AlertSeverity.YELLOW),

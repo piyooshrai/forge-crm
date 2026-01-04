@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendAlertEmail } from '@/lib/email/ses-client';
-import { getCcRecipients, getPreviousMonth } from '@/lib/email/helpers';
+import { getCcRecipients, getPreviousMonth, isUserInGracePeriod, getAlertSubject } from '@/lib/email/helpers';
 import { generateMarketingMonthlyEmail } from '@/lib/email/templates/marketing';
 import { AlertType, AlertSeverity } from '@prisma/client';
 
@@ -24,6 +24,13 @@ export async function GET(req: NextRequest) {
       where: {
         role: 'MARKETING_REP',
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        hiredAt: true,
+      },
     });
 
     // Calculate overall stats for ranking
@@ -31,6 +38,7 @@ export async function GET(req: NextRequest) {
       userId: string;
       userName: string;
       email: string;
+      hiredAt: Date | null;
       totalTasks: number;
       successRate: number;
       leadsGenerated: number;
@@ -53,6 +61,7 @@ export async function GET(req: NextRequest) {
         userId: user.id,
         userName: user.name,
         email: user.email,
+        hiredAt: user.hiredAt,
         totalTasks: userTasks.length,
         successRate,
         leadsGenerated,
@@ -141,13 +150,16 @@ export async function GET(req: NextRequest) {
         teamTotal,
       });
 
+      const inGracePeriod = isUserInGracePeriod(userStat.hiredAt);
+      const subject = getAlertSubject(emailContent.subject, inGracePeriod);
+
       try {
         await sendAlertEmail({
           userId: userStat.userId,
           userEmail: userStat.email,
           alertType: AlertType.MARKETING_MONTHLY,
           severity,
-          subject: emailContent.subject,
+          subject,
           htmlBody: emailContent.html,
           textBody: emailContent.text,
           ccRecipients: severity === AlertSeverity.RED ? getCcRecipients(severity, true, true) : getCcRecipients(severity),

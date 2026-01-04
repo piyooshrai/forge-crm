@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendAlertEmail } from '@/lib/email/ses-client';
-import { getCcRecipients, getCurrentPeriod } from '@/lib/email/helpers';
+import { getCcRecipients, getCurrentPeriod, isUserInGracePeriod, getAlertSubject } from '@/lib/email/helpers';
 import { generateTaskAlertEmail } from '@/lib/email/templates/task';
 import { AlertType, AlertSeverity } from '@prisma/client';
 
@@ -23,6 +23,13 @@ export async function GET(req: NextRequest) {
     const users = await prisma.user.findMany({
       where: {
         role: { in: ['SALES_REP', 'MARKETING_REP'] },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        hiredAt: true,
       },
     });
 
@@ -80,13 +87,16 @@ export async function GET(req: NextRequest) {
         overdueTasks: taskData,
       });
 
+      const inGracePeriod = isUserInGracePeriod(user.hiredAt);
+      const subject = getAlertSubject(emailContent.subject, inGracePeriod);
+
       try {
         await sendAlertEmail({
           userId: user.id,
           userEmail: user.email,
           alertType,
           severity,
-          subject: emailContent.subject,
+          subject,
           htmlBody: emailContent.html,
           textBody: emailContent.text,
           ccRecipients: getCcRecipients(severity),

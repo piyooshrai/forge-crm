@@ -136,6 +136,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Onboarding fields
+  onboardingCompleted   Boolean   @default(false)
+  onboardingCompletedAt DateTime?
+  onboardingStep        Int       @default(0)
+  hiredAt               DateTime?
+
   leadsOwned      Lead[]               @relation("LeadOwner")
   leadsMarketing  Lead[]               @relation("LeadMarketingRep")
   dealsOwned      Deal[]               @relation("DealOwner")
