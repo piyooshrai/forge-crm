@@ -57,6 +57,16 @@ export async function GET(
   return NextResponse.json(deal);
 }
 
+const stageLabels: Record<DealStage, string> = {
+  LEAD: 'Lead',
+  QUALIFIED: 'Qualified',
+  DISCOVERY: 'Discovery',
+  PROPOSAL: 'Proposal',
+  NEGOTIATION: 'Negotiation',
+  CLOSED_WON: 'Closed Won',
+  CLOSED_LOST: 'Closed Lost',
+};
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -81,6 +91,12 @@ export async function PATCH(
     );
   }
 
+  // Get current deal to check for stage change
+  const currentDeal = await prisma.deal.findUnique({
+    where: { id },
+    select: { stage: true },
+  });
+
   // Calculate amount for hourly deals
   let amountTotal = body.amountTotal;
   if (body.amountType === 'HOURLY' && body.hourlyRate && body.expectedHours) {
@@ -103,8 +119,37 @@ export async function PATCH(
           product: true,
         },
       },
+      activities: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
+      tasks: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+        orderBy: { dueDate: 'asc' },
+      },
     },
   });
+
+  // Auto-create activity if stage changed
+  if (body.stage && currentDeal && currentDeal.stage !== body.stage) {
+    await prisma.activity.create({
+      data: {
+        type: 'NOTE',
+        subject: 'Stage Changed',
+        description: `Deal moved from ${stageLabels[currentDeal.stage]} to ${stageLabels[body.stage as DealStage]}`,
+        dealId: id,
+        userId: session.user.id,
+      },
+    });
+  }
 
   return NextResponse.json(deal);
 }

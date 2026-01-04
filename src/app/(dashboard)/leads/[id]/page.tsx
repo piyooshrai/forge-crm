@@ -1,33 +1,50 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import GlassCard from '@/components/GlassCard';
 import SectionHeader from '@/components/SectionHeader';
 import { Modal, ConfirmModal, Button, TextInput, SelectInput, TextareaInput, Badge, EmptyState, Tabs } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import {
-  mockLeads,
-  mockActivities,
-  mockTasks,
-  activityTypes,
-  leadStatuses,
   formatDate,
   formatDateTime,
   isOverdue,
   isToday,
-  type Activity,
-  type ActivityType,
-  type Task,
-  type LeadStatus,
+  dealStages,
+  stageLabels,
+  pipelineLabels,
+  pipelines,
 } from '@/lib/mock-data';
+import { LeadStatus, LeadSource, Pipeline, ActivityType, DealStage } from '@prisma/client';
 
 const statusColors: Record<LeadStatus, 'info' | 'warning' | 'success' | 'danger'> = {
-  New: 'info',
-  Contacted: 'warning',
-  Qualified: 'success',
-  Unqualified: 'danger',
+  NEW: 'info',
+  CONTACTED: 'warning',
+  QUALIFIED: 'success',
+  UNQUALIFIED: 'danger',
+};
+
+const statusLabels: Record<LeadStatus, string> = {
+  NEW: 'New',
+  CONTACTED: 'Contacted',
+  QUALIFIED: 'Qualified',
+  UNQUALIFIED: 'Unqualified',
+};
+
+const sourceLabels: Record<LeadSource, string> = {
+  WEBSITE: 'Website',
+  REFERRAL: 'Referral',
+  COLD_CALL: 'Cold Call',
+  LINKEDIN: 'LinkedIn',
+  TRADE_SHOW: 'Trade Show',
+  EMAIL_CAMPAIGN: 'Email Campaign',
+  UPWORK: 'Upwork',
+  GURU: 'Guru',
+  FREELANCER: 'Freelancer',
+  OTHER: 'Other',
 };
 
 const activityIcons: Record<ActivityType, string> = {
@@ -37,16 +54,67 @@ const activityIcons: Record<ActivityType, string> = {
   EMAIL: '📧',
 };
 
+const activityTypes: ActivityType[] = ['NOTE', 'CALL', 'MEETING', 'EMAIL'];
+const leadStatuses: LeadStatus[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED'];
+const leadSources: LeadSource[] = ['WEBSITE', 'REFERRAL', 'COLD_CALL', 'LINKEDIN', 'TRADE_SHOW', 'EMAIL_CAMPAIGN', 'UPWORK', 'GURU', 'FREELANCER', 'OTHER'];
+const regions = ['US', 'UK', 'EU', 'ME', 'APAC', 'LATAM'];
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface Activity {
+  id: string;
+  type: ActivityType;
+  subject: string;
+  description: string | null;
+  user: User;
+  createdAt: string;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  completed: boolean;
+  user: User;
+  createdAt: string;
+}
+
+interface Lead {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  title: string | null;
+  source: LeadSource;
+  status: LeadStatus;
+  regionTags: string[];
+  ownerId: string;
+  owner: User;
+  isConverted: boolean;
+  convertedToDealId: string | null;
+  convertedToDeal: { id: string; name: string; stage: DealStage } | null;
+  activities: Activity[];
+  tasks: Task[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { data: session } = useSession();
   const { showToast } = useToast();
 
-  // Find lead from mock data
-  const leadData = mockLeads.find((l) => l.id === id);
-  const [lead, setLead] = useState(leadData);
-  const [activities, setActivities] = useState<Activity[]>(mockActivities);
-  const [tasks, setTasks] = useState<Task[]>(mockTasks);
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
 
   // Modal states
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -55,15 +123,223 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [isEditMode, setIsEditMode] = useState(false);
 
   // Form states
-  const [activityForm, setActivityForm] = useState({ type: 'NOTE' as ActivityType, description: '' });
+  const [activityForm, setActivityForm] = useState({ type: 'NOTE' as ActivityType, subject: '', description: '' });
   const [taskForm, setTaskForm] = useState({ title: '', description: '', dueDate: '' });
+  const [convertForm, setConvertForm] = useState({ name: '', pipeline: 'IT_SERVICES' as Pipeline });
   const [editForm, setEditForm] = useState({
-    companyName: lead?.companyName || '',
-    contactName: lead?.contactName || '',
-    contactEmail: lead?.contactEmail || '',
-    contactPhone: lead?.contactPhone || '',
-    status: lead?.status || 'New',
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    title: '',
+    source: 'OTHER' as LeadSource,
+    status: 'NEW' as LeadStatus,
+    regionTags: [] as string[],
   });
+
+  // Fetch lead data
+  useEffect(() => {
+    async function fetchLead() {
+      try {
+        const res = await fetch(`/api/leads/${id}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            setLead(null);
+          }
+          throw new Error('Failed to fetch lead');
+        }
+        const data = await res.json();
+        setLead(data);
+        setEditForm({
+          name: data.name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          company: data.company || '',
+          title: data.title || '',
+          source: data.source,
+          status: data.status,
+          regionTags: data.regionTags || [],
+        });
+        setConvertForm({
+          name: data.company || data.name || 'Untitled Deal',
+          pipeline: 'IT_SERVICES',
+        });
+      } catch (error) {
+        console.error('Error fetching lead:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchLead();
+  }, [id]);
+
+  // Fetch users for task assignment
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data.users || []);
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    }
+    fetchUsers();
+  }, []);
+
+  const handleAddActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: activityForm.type,
+          subject: activityForm.subject,
+          description: activityForm.description,
+          leadId: id,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to add activity');
+
+      const newActivity = await res.json();
+      setLead((prev) => prev ? { ...prev, activities: [newActivity, ...prev.activities] } : null);
+      setActivityForm({ type: 'NOTE', subject: '', description: '' });
+      setIsActivityModalOpen(false);
+      showToast('Activity added', 'success');
+    } catch (error) {
+      showToast('Failed to add activity', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: taskForm.title,
+          description: taskForm.description,
+          dueDate: taskForm.dueDate || null,
+          leadId: id,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to add task');
+
+      const newTask = await res.json();
+      setLead((prev) => prev ? { ...prev, tasks: [...prev.tasks, newTask].sort((a, b) =>
+        new Date(a.dueDate || '9999').getTime() - new Date(b.dueDate || '9999').getTime()
+      ) } : null);
+      setTaskForm({ title: '', description: '', dueDate: '' });
+      setIsTaskModalOpen(false);
+      showToast('Task added', 'success');
+    } catch (error) {
+      showToast('Failed to add task', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleTask = async (taskId: string, completed: boolean) => {
+    try {
+      const res = await fetch(`/api/tasks?id=${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !completed }),
+      });
+
+      if (!res.ok) throw new Error('Failed to update task');
+
+      setLead((prev) =>
+        prev ? {
+          ...prev,
+          tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, completed: !completed } : t)),
+        } : null
+      );
+    } catch (error) {
+      showToast('Failed to update task', 'error');
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to update lead');
+      }
+
+      const updatedLead = await res.json();
+      setLead((prev) => prev ? { ...prev, ...updatedLead } : null);
+      setIsEditMode(false);
+      showToast('Lead updated', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to update lead', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConvertToDeal = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/leads/${id}/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(convertForm),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to convert lead');
+      }
+
+      const deal = await res.json();
+      setIsConvertModalOpen(false);
+      showToast('Lead converted to deal successfully!', 'success');
+      router.push(`/deals/${deal.id}`);
+    } catch (error: any) {
+      showToast(error.message || 'Failed to convert lead', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRegionToggle = (region: string) => {
+    setEditForm((prev) => ({
+      ...prev,
+      regionTags: prev.regionTags.includes(region)
+        ? prev.regionTags.filter((r) => r !== region)
+        : [...prev.regionTags, region],
+    }));
+  };
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 w-48 bg-white/10 rounded" />
+          <div className="h-64 bg-white/5 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
 
   if (!lead) {
     return (
@@ -78,74 +354,25 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  const handleAddActivity = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newActivity: Activity = {
-      id: String(Date.now()),
-      type: activityForm.type,
-      description: activityForm.description,
-      user: { name: 'John Doe', email: 'john@forge.com' },
-      createdAt: new Date(),
-    };
-    setActivities([newActivity, ...activities]);
-    setActivityForm({ type: 'NOTE', description: '' });
-    setIsActivityModalOpen(false);
-    showToast('Activity added', 'success');
-  };
-
-  const handleAddTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newTask: Task = {
-      id: String(Date.now()),
-      title: taskForm.title,
-      description: taskForm.description,
-      dueDate: new Date(taskForm.dueDate),
-      completed: false,
-      user: { name: 'John Doe', email: 'john@forge.com' },
-      createdAt: new Date(),
-    };
-    setTasks([newTask, ...tasks]);
-    setTaskForm({ title: '', description: '', dueDate: '' });
-    setIsTaskModalOpen(false);
-    showToast('Task added', 'success');
-  };
-
-  const handleToggleTask = (taskId: string) => {
-    setTasks(tasks.map((t) =>
-      t.id === taskId ? { ...t, completed: !t.completed } : t
-    ));
-  };
-
-  const handleSaveEdit = () => {
-    setLead({ ...lead, ...editForm });
-    setIsEditMode(false);
-    showToast('Lead updated', 'success');
-  };
-
-  const handleConvertToDeal = () => {
-    setIsConvertModalOpen(false);
-    showToast('Lead converted to deal successfully!', 'success');
-    setTimeout(() => {
-      router.push('/deals/new-converted-deal');
-    }, 1000);
-  };
-
   const activitiesContent = (
     <div className="space-y-3">
-      {activities.length === 0 ? (
+      {lead.activities.length === 0 ? (
         <EmptyState
           icon="📋"
           title="No activities yet"
           description="Add your first activity to track interactions"
         />
       ) : (
-        activities.map((activity) => (
+        lead.activities.map((activity) => (
           <div key={activity.id} className="flex gap-3 rounded-lg bg-white/5 p-3">
             <span className="text-xl">{activityIcons[activity.type]}</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-white">{activity.description}</p>
+              <p className="text-sm font-medium text-white">{activity.subject}</p>
+              {activity.description && (
+                <p className="text-sm text-white/70 mt-1">{activity.description}</p>
+              )}
               <p className="text-xs text-white/50 mt-1">
-                {activity.user.name} · {formatDateTime(activity.createdAt)}
+                {activity.user.name} · {formatDateTime(new Date(activity.createdAt))}
               </p>
             </div>
           </div>
@@ -156,14 +383,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
   const tasksContent = (
     <div className="space-y-3">
-      {tasks.length === 0 ? (
+      {lead.tasks.length === 0 ? (
         <EmptyState
           icon="✓"
           title="No tasks yet"
           description="Create tasks to track your to-dos"
         />
       ) : (
-        tasks.map((task) => (
+        lead.tasks.map((task) => (
           <div
             key={task.id}
             className={`flex items-start gap-3 rounded-lg bg-white/5 p-3 ${
@@ -171,7 +398,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             }`}
           >
             <button
-              onClick={() => handleToggleTask(task.id)}
+              onClick={() => handleToggleTask(task.id, task.completed)}
               className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
                 task.completed
                   ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400'
@@ -191,22 +418,24 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               {task.description && (
                 <p className="text-xs text-white/50 mt-0.5">{task.description}</p>
               )}
-              <div className="flex items-center gap-2 mt-1">
-                <span
-                  className={`text-xs ${
-                    task.completed
-                      ? 'text-white/40'
-                      : isOverdue(task.dueDate)
-                      ? 'text-red-400'
-                      : isToday(task.dueDate)
-                      ? 'text-amber-400'
-                      : 'text-white/50'
-                  }`}
-                >
-                  {isOverdue(task.dueDate) && !task.completed && '⚠️ '}
-                  Due {formatDate(task.dueDate)}
-                </span>
-              </div>
+              {task.dueDate && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span
+                    className={`text-xs ${
+                      task.completed
+                        ? 'text-white/40'
+                        : isOverdue(new Date(task.dueDate))
+                        ? 'text-red-400'
+                        : isToday(new Date(task.dueDate))
+                        ? 'text-amber-400'
+                        : 'text-white/50'
+                    }`}
+                  >
+                    {isOverdue(new Date(task.dueDate)) && !task.completed && '⚠️ '}
+                    Due {formatDate(new Date(task.dueDate))}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         ))
@@ -225,19 +454,31 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           >
             ← Back to Leads
           </Link>
-          <div className="flex items-center gap-3">
-            <SectionHeader title={lead.companyName} />
-            <Badge variant={statusColors[lead.status]}>{lead.status}</Badge>
+          <div className="flex items-center gap-3 flex-wrap">
+            <SectionHeader title={lead.company || lead.name} />
+            <Badge variant={statusColors[lead.status]}>{statusLabels[lead.status]}</Badge>
+            {lead.isConverted && (
+              <Badge variant="success">Converted</Badge>
+            )}
           </div>
-          <p className="text-sm text-white/60 mt-1">{lead.contactName}</p>
+          <p className="text-sm text-white/60 mt-1">{lead.name}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setIsEditMode(true)}>
-            Edit
-          </Button>
-          <Button onClick={() => setIsConvertModalOpen(true)}>
-            Convert to Deal
-          </Button>
+        <div className="flex gap-2 flex-wrap">
+          {!lead.isConverted && (
+            <>
+              <Button variant="secondary" onClick={() => setIsEditMode(true)}>
+                Edit
+              </Button>
+              <Button onClick={() => setIsConvertModalOpen(true)}>
+                Convert to Deal
+              </Button>
+            </>
+          )}
+          {lead.isConverted && lead.convertedToDeal && (
+            <Link href={`/deals/${lead.convertedToDeal.id}`}>
+              <Button>View Deal</Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -250,11 +491,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               <SectionHeader title="Details" />
               {isEditMode && (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => setIsEditMode(false)}>
+                  <Button size="sm" variant="secondary" onClick={() => setIsEditMode(false)} disabled={saving}>
                     Cancel
                   </Button>
-                  <Button size="sm" onClick={handleSaveEdit}>
-                    Save
+                  <Button size="sm" onClick={handleSaveEdit} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
                   </Button>
                 </div>
               )}
@@ -263,62 +504,100 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             {isEditMode ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <TextInput
-                  label="Company Name"
-                  value={editForm.companyName}
-                  onChange={(e) => setEditForm({ ...editForm, companyName: e.target.value })}
+                  label="Name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 />
                 <TextInput
-                  label="Contact Name"
-                  value={editForm.contactName}
-                  onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })}
+                  label="Company"
+                  value={editForm.company}
+                  onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
                 />
                 <TextInput
                   label="Email"
                   type="email"
-                  value={editForm.contactEmail}
-                  onChange={(e) => setEditForm({ ...editForm, contactEmail: e.target.value })}
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                 />
                 <TextInput
                   label="Phone"
                   type="tel"
-                  value={editForm.contactPhone}
-                  onChange={(e) => setEditForm({ ...editForm, contactPhone: e.target.value })}
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                />
+                <TextInput
+                  label="Title"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                />
+                <SelectInput
+                  label="Source"
+                  value={editForm.source}
+                  onChange={(e) => setEditForm({ ...editForm, source: e.target.value as LeadSource })}
+                  options={leadSources.map((s) => ({ value: s, label: sourceLabels[s] }))}
                 />
                 <SelectInput
                   label="Status"
                   value={editForm.status}
                   onChange={(e) => setEditForm({ ...editForm, status: e.target.value as LeadStatus })}
-                  options={leadStatuses.map((s) => ({ value: s, label: s }))}
+                  options={leadStatuses.map((s) => ({ value: s, label: statusLabels[s] }))}
                 />
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-white/50 mb-2">Regions</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {regions.map((region) => (
+                      <button
+                        key={region}
+                        type="button"
+                        onClick={() => handleRegionToggle(region)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          editForm.regionTags.includes(region)
+                            ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                            : 'bg-white/5 border-white/10 text-white/60 hover:border-white/30'
+                        }`}
+                      >
+                        {region}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="text-xs text-white/50 mb-1">Company</p>
-                  <p className="text-sm text-white">{lead.companyName}</p>
+                  <p className="text-xs text-white/50 mb-1">Name</p>
+                  <p className="text-sm text-white">{lead.name}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-white/50 mb-1">Contact</p>
-                  <p className="text-sm text-white">{lead.contactName}</p>
+                  <p className="text-xs text-white/50 mb-1">Company</p>
+                  <p className="text-sm text-white">{lead.company || '-'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-white/50 mb-1">Email</p>
-                  <p className="text-sm text-white">{lead.contactEmail}</p>
+                  <p className="text-sm text-white">{lead.email || '-'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-white/50 mb-1">Phone</p>
-                  <p className="text-sm text-white">{lead.contactPhone || '-'}</p>
+                  <p className="text-sm text-white">{lead.phone || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/50 mb-1">Title</p>
+                  <p className="text-sm text-white">{lead.title || '-'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-white/50 mb-1">Source</p>
-                  <p className="text-sm text-white">{lead.source}</p>
+                  <p className="text-sm text-white">{sourceLabels[lead.source]}</p>
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <p className="text-xs text-white/50 mb-1">Regions</p>
                   <div className="flex gap-1 flex-wrap">
-                    {lead.regionTags.map((tag) => (
-                      <Badge key={tag} variant="default" size="sm">{tag}</Badge>
-                    ))}
+                    {lead.regionTags.length > 0 ? (
+                      lead.regionTags.map((tag) => (
+                        <Badge key={tag} variant="default" size="sm">{tag}</Badge>
+                      ))
+                    ) : (
+                      <span className="text-sm text-white/50">-</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -339,8 +618,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             </div>
             <Tabs
               tabs={[
-                { id: 'activities', label: `Activities (${activities.length})`, content: activitiesContent },
-                { id: 'tasks', label: `Tasks (${tasks.length})`, content: tasksContent },
+                { id: 'activities', label: `Activities (${lead.activities.length})`, content: activitiesContent },
+                { id: 'tasks', label: `Tasks (${lead.tasks.length})`, content: tasksContent },
               ]}
             />
           </GlassCard>
@@ -368,10 +647,26 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-white/50">Created</span>
-                <span className="text-white">{formatDate(lead.createdAt)}</span>
+                <span className="text-white">{formatDate(new Date(lead.createdAt))}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/50">Updated</span>
+                <span className="text-white">{formatDate(new Date(lead.updatedAt))}</span>
               </div>
             </div>
           </GlassCard>
+
+          {lead.convertedToDeal && (
+            <GlassCard variant="secondary" className="p-6">
+              <SectionHeader title="Converted Deal" className="mb-4" />
+              <Link href={`/deals/${lead.convertedToDeal.id}`} className="block">
+                <div className="rounded-lg bg-white/5 border border-white/10 p-3 hover:bg-white/10 transition-colors">
+                  <p className="text-sm font-medium text-white">{lead.convertedToDeal.name}</p>
+                  <p className="text-xs text-white/50 mt-1">{stageLabels[lead.convertedToDeal.stage as keyof typeof stageLabels]}</p>
+                </div>
+              </Link>
+            </GlassCard>
+          )}
         </div>
       </div>
 
@@ -388,18 +683,26 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value as ActivityType })}
             options={activityTypes.map((t) => ({ value: t, label: t.charAt(0) + t.slice(1).toLowerCase() }))}
           />
+          <TextInput
+            label="Subject"
+            value={activityForm.subject}
+            onChange={(e) => setActivityForm({ ...activityForm, subject: e.target.value })}
+            required
+            placeholder="Brief summary..."
+          />
           <TextareaInput
-            label="Description"
+            label="Description (optional)"
             value={activityForm.description}
             onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
-            required
             placeholder="Enter activity details..."
           />
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setIsActivityModalOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setIsActivityModalOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit">Add Activity</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Adding...' : 'Add Activity'}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -429,27 +732,50 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             type="date"
             value={taskForm.dueDate}
             onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
-            required
           />
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setIsTaskModalOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => setIsTaskModalOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit">Add Task</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Adding...' : 'Add Task'}
+            </Button>
           </div>
         </form>
       </Modal>
 
       {/* Convert to Deal Modal */}
-      <ConfirmModal
+      <Modal
         isOpen={isConvertModalOpen}
         onClose={() => setIsConvertModalOpen(false)}
-        onConfirm={handleConvertToDeal}
         title="Convert to Deal"
-        message={`Are you sure you want to convert "${lead.companyName}" to a deal? This will create a new deal record and link it to this lead.`}
-        confirmText="Convert to Deal"
-      />
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-white/70">
+            Convert "{lead.company || lead.name}" to a deal. This will create a new deal record and link it to this lead.
+          </p>
+          <TextInput
+            label="Deal Name"
+            value={convertForm.name}
+            onChange={(e) => setConvertForm({ ...convertForm, name: e.target.value })}
+            placeholder="Enter deal name"
+          />
+          <SelectInput
+            label="Pipeline"
+            value={convertForm.pipeline}
+            onChange={(e) => setConvertForm({ ...convertForm, pipeline: e.target.value as Pipeline })}
+            options={pipelines.map((p) => ({ value: p, label: pipelineLabels[p] }))}
+          />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setIsConvertModalOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleConvertToDeal} disabled={saving}>
+              {saving ? 'Converting...' : 'Convert to Deal'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
-
