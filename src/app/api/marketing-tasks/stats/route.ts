@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get('days') || '7');
   const userId = searchParams.get('userId');
+  const productId = searchParams.get('productId');
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email! },
@@ -36,11 +37,17 @@ export async function GET(req: NextRequest) {
     where.userId = userId;
   }
 
+  // Filter by product if specified
+  if (productId) {
+    where.productId = productId;
+  }
+
   // Get all tasks in period
   const tasks = await prisma.marketingTask.findMany({
     where,
     include: {
       user: { select: { id: true, name: true } },
+      product: { select: { id: true, name: true } },
     },
   });
 

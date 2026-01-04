@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type') as MarketingTaskType | null;
   const status = searchParams.get('status') as MarketingTaskStatus | null;
   const outcome = searchParams.get('outcome') as MarketingTaskOutcome | null;
+  const productId = searchParams.get('productId');
   const templates = searchParams.get('templates') === 'true';
   const limit = parseInt(searchParams.get('limit') || '50');
   const offset = parseInt(searchParams.get('offset') || '0');
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
   if (type) where.type = type;
   if (status) where.status = status;
   if (outcome) where.outcome = outcome;
+  if (productId) where.productId = productId;
   if (templates) where.isTemplate = true;
 
   const tasks = await prisma.marketingTask.findMany({
@@ -42,6 +44,7 @@ export async function GET(req: NextRequest) {
     include: {
       user: { select: { id: true, name: true, email: true } },
       template: { select: { id: true, templateName: true } },
+      product: { select: { id: true, name: true } },
     },
     orderBy: { taskDate: 'desc' },
     take: limit,
@@ -110,7 +113,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { type, description, target, content, taskDate, templateId, userId: targetUserId } = body;
+  const { type, description, target, content, taskDate, templateId, userId: targetUserId, productId } = body;
 
   if (!type || !description) {
     return NextResponse.json({ error: 'Type and description required' }, { status: 400 });
@@ -129,9 +132,11 @@ export async function POST(req: NextRequest) {
       status: 'IN_PROGRESS',
       templateId,
       userId: createForUserId,
+      productId: productId || undefined,
     },
     include: {
       user: { select: { id: true, name: true, email: true } },
+      product: { select: { id: true, name: true } },
     },
   });
 

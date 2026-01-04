@@ -33,6 +33,11 @@ interface RepStats {
   leadsGenerated: number;
 }
 
+interface ProductOption {
+  id: string;
+  name: string;
+}
+
 interface Stats {
   period: { days: number; startDate: string };
   summary: {
@@ -69,14 +74,20 @@ export default function MarketingPerformancePage() {
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
+
+  // Filters for stats
+  const [statsFilterRep, setStatsFilterRep] = useState('');
+  const [statsFilterProduct, setStatsFilterProduct] = useState('');
 
   // Filters for task explorer
   const [filterRep, setFilterRep] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterOutcome, setFilterOutcome] = useState('');
   const [filterLeadGenerated, setFilterLeadGenerated] = useState('');
+  const [filterProduct, setFilterProduct] = useState('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -86,20 +97,41 @@ export default function MarketingPerformancePage() {
 
   useEffect(() => {
     if (session) {
+      fetchProducts();
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (session) {
       fetchData();
     }
-  }, [session, days]);
+  }, [session, days, statsFilterRep, statsFilterProduct]);
 
   useEffect(() => {
     if (session) {
       fetchTasks();
     }
-  }, [session, filterRep, filterType, filterOutcome, filterLeadGenerated]);
+  }, [session, filterRep, filterType, filterOutcome, filterLeadGenerated, filterProduct]);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/marketing-tasks/stats?days=${days}`);
+      const params = new URLSearchParams();
+      params.append('days', days.toString());
+      if (statsFilterRep) params.append('userId', statsFilterRep);
+      if (statsFilterProduct) params.append('productId', statsFilterProduct);
+
+      const res = await fetch(`/api/marketing-tasks/stats?${params.toString()}`);
       const data = await res.json();
       setStats(data);
     } catch (error) {
@@ -114,6 +146,7 @@ export default function MarketingPerformancePage() {
       const params = new URLSearchParams();
       if (filterType) params.append('type', filterType);
       if (filterOutcome) params.append('outcome', filterOutcome);
+      if (filterProduct) params.append('productId', filterProduct);
 
       const res = await fetch(`/api/marketing-tasks?${params.toString()}&limit=100`);
       const data = await res.json();
@@ -168,17 +201,43 @@ export default function MarketingPerformancePage() {
 
   return (
     <div className="p-8 space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <h1 className="text-2xl font-bold text-white">Marketing Performance</h1>
-        <select
-          value={days}
-          onChange={(e) => setDays(parseInt(e.target.value))}
-          className="px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
-        >
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-        </select>
+        <div className="flex gap-2 flex-wrap">
+          {stats && stats.byRep.length > 0 && (
+            <select
+              value={statsFilterRep}
+              onChange={(e) => setStatsFilterRep(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+            >
+              <option value="">All Reps</option>
+              {stats.byRep.map(rep => (
+                <option key={rep.userId} value={rep.userId}>{rep.name}</option>
+              ))}
+            </select>
+          )}
+          {products.length > 0 && (
+            <select
+              value={statsFilterProduct}
+              onChange={(e) => setStatsFilterProduct(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+            >
+              <option value="">All Products</option>
+              {products.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
+          <select
+            value={days}
+            onChange={(e) => setDays(parseInt(e.target.value))}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </div>
       </div>
 
       {stats && (
@@ -368,6 +427,19 @@ export default function MarketingPerformancePage() {
             <option value="yes">Lead Generated</option>
             <option value="no">No Lead</option>
           </select>
+
+          {products.length > 0 && (
+            <select
+              value={filterProduct}
+              onChange={(e) => setFilterProduct(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+            >
+              <option value="">All Products</option>
+              {products.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Tasks List */}

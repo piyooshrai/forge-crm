@@ -42,6 +42,12 @@ interface Task {
   isTemplate: boolean;
   templateName?: string;
   user: { id: string; name: string };
+  product?: { id: string; name: string } | null;
+}
+
+interface Product {
+  id: string;
+  name: string;
 }
 
 interface Stats {
@@ -66,6 +72,7 @@ export default function MarketingTasksPage() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [templates, setTemplates] = useState<Task[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -86,6 +93,7 @@ export default function MarketingTasksPage() {
     target: '',
     content: '',
     taskDate: new Date().toISOString().split('T')[0],
+    productId: '',
   });
 
   // Update outcome form
@@ -116,19 +124,22 @@ export default function MarketingTasksPage() {
       if (filterOutcome) params.append('outcome', filterOutcome);
       if (filterStatus) params.append('status', filterStatus);
 
-      const [tasksRes, templatesRes, statsRes] = await Promise.all([
+      const [tasksRes, templatesRes, statsRes, productsRes] = await Promise.all([
         fetch(`/api/marketing-tasks?${params.toString()}`),
         fetch('/api/marketing-tasks?templates=true'),
         fetch('/api/marketing-tasks/stats?days=7'),
+        fetch('/api/products'),
       ]);
 
       const tasksData = await tasksRes.json();
       const templatesData = await templatesRes.json();
       const statsData = await statsRes.json();
+      const productsData = await productsRes.json();
 
       setTasks(tasksData.tasks || []);
       setTemplates(templatesData.tasks || []);
       setStats(statsData);
+      setProducts(productsData || []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -138,10 +149,14 @@ export default function MarketingTasksPage() {
 
   const handleCreateTask = async () => {
     try {
+      const taskData = {
+        ...newTask,
+        productId: newTask.productId || undefined,
+      };
       const res = await fetch('/api/marketing-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify(taskData),
       });
 
       if (res.ok) {
@@ -152,6 +167,7 @@ export default function MarketingTasksPage() {
           target: '',
           content: '',
           taskDate: new Date().toISOString().split('T')[0],
+          productId: '',
         });
         fetchData();
       }
@@ -202,6 +218,7 @@ export default function MarketingTasksPage() {
       target: template.target || '',
       content: template.content || '',
       taskDate: new Date().toISOString().split('T')[0],
+      productId: template.product?.id || '',
     });
     setShowNewTask(true);
   };
@@ -538,6 +555,21 @@ export default function MarketingTasksPage() {
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
                 />
               </div>
+              {products.length > 0 && (
+                <div>
+                  <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Product/Service (optional)</label>
+                  <select
+                    value={newTask.productId}
+                    onChange={(e) => setNewTask({ ...newTask, productId: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                  >
+                    <option value="">None</option>
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button
