@@ -114,7 +114,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen bg-[#0f172a]">
       {/* Left side - Login form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+      <div className="w-full lg:w-[70%] flex items-center justify-center p-8">
         <div className="w-full max-w-sm">
           {/* Company Logo */}
           <div className="flex justify-center mb-8">
@@ -232,7 +232,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right side - Dashboard */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-8 border-l border-slate-800">
+      <div className="hidden lg:flex lg:w-[30%] items-center justify-center p-8 border-l border-slate-800">
         <div className="w-full max-w-sm space-y-4">
           {/* Team Performance */}
           <TeamPerformance stats={stats} />
