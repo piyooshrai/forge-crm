@@ -254,9 +254,9 @@ export default function DashboardPage() {
           </GlassCard>
 
           {/* Tasks Due Today */}
-          <GlassCard variant="secondary" className="p-6">
-            <SectionHeader title="Upcoming Tasks" className="mb-4" />
-            <div className="flex flex-col gap-4">
+          <GlassCard variant="secondary" className="p-6 flex-1 flex flex-col min-h-0">
+            <SectionHeader title="Upcoming Tasks" className="mb-4 flex-shrink-0" />
+            <div className="flex flex-col gap-4 overflow-y-auto flex-1 min-h-0">
               {tasksDueToday.length > 0 ? tasksDueToday.map((task) => (
                 <div key={task.id} className="flex items-start justify-between gap-3 py-3">
                   <div className="flex-1">
@@ -308,7 +308,7 @@ export default function DashboardPage() {
           </GlassCard>
 
           {/* Deal Stages */}
-          <GlassCard variant="secondary" className="p-6">
+          <GlassCard variant="secondary" className="p-6 flex-1">
             <SectionHeader title="Deal Stages" className="mb-6" />
             <div className="flex flex-col gap-4">
               {dealStages.map((stage, index) => (
@@ -371,7 +371,7 @@ export default function DashboardPage() {
           </GlassCard>
 
           {/* Top Deals */}
-          <GlassCard variant="secondary" className="p-6">
+          <GlassCard variant="secondary" className="p-6 flex-1">
             <SectionHeader title="Top Deals" className="mb-4" />
             <div className="flex flex-col gap-4">
               {topDeals.length > 0 ? topDeals.map((deal) => (
