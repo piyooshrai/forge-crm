@@ -176,6 +176,40 @@ function DealsContent() {
     }
   };
 
+  const handleDeleteDeal = async (dealId: string) => {
+    if (!confirm('Are you sure you want to delete this deal?')) return;
+
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete deal');
+      setDeals(deals.filter(d => d.id !== dealId));
+      showToast('Deal deleted', 'success');
+    } catch (error) {
+      showToast('Failed to delete deal', 'error');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const count = filteredDeals.length;
+    if (count === 0) {
+      showToast('No deals to delete', 'error');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${count} deal(s)? This cannot be undone.`)) return;
+
+    try {
+      const deletePromises = filteredDeals.map(deal =>
+        fetch(`/api/deals/${deal.id}`, { method: 'DELETE' })
+      );
+      await Promise.all(deletePromises);
+      fetchDeals();
+      showToast(`${count} deals deleted`, 'success');
+    } catch (error) {
+      showToast('Failed to delete deals', 'error');
+    }
+  };
+
   const handleDragStart = (e: React.DragEvent, dealId: string) => {
     e.dataTransfer.setData('dealId', dealId);
   };
@@ -278,6 +312,11 @@ function DealsContent() {
               Kanban
             </button>
           </div>
+          {filteredDeals.length > 0 && (
+            <Button variant="secondary" onClick={handleDeleteAll} className="!bg-red-600/20 !text-red-400 !border-red-600/30 hover:!bg-red-600/30">
+              Delete All
+            </Button>
+          )}
           <Button onClick={() => setIsModalOpen(true)}>+ New Deal</Button>
         </div>
       </div>
@@ -372,6 +411,9 @@ function DealsContent() {
                   <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-white/50 lg:table-cell">
                     Owner
                   </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-white/50">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -409,6 +451,14 @@ function DealsContent() {
                     </td>
                     <td className="hidden px-4 py-3 text-sm text-white/60 lg:table-cell">
                       {deal.owner?.name || 'Unassigned'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleDeleteDeal(deal.id)}
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
