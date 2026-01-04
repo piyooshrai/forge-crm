@@ -29,6 +29,25 @@ const categoryDescriptions: Record<AlertCategory, string> = {
   MONTHLY: 'End-of-month performance reviews',
 };
 
+// Group alerts by section
+const alertGroups: { title: string; icon: string; categories: AlertCategory[] }[] = [
+  {
+    title: 'Sales Alerts',
+    icon: '💼',
+    categories: ['QUOTA', 'STALE', 'ACTIVITY'],
+  },
+  {
+    title: 'Marketing Alerts',
+    icon: '📣',
+    categories: ['MARKETING'],
+  },
+  {
+    title: 'General Alerts',
+    icon: '🔔',
+    categories: ['TASK', 'MONTHLY'],
+  },
+];
+
 const thresholdLabels: Record<AlertCategory, { red: string; yellow: string; green: string }> = {
   QUOTA: { red: 'RED if below %', yellow: 'YELLOW if below %', green: 'GREEN if above %' },
   STALE: { red: 'RED if > days', yellow: 'YELLOW if > days', green: 'N/A' },
@@ -348,10 +367,12 @@ export default function AlertSettingsPage() {
     return null;
   }
 
-  // Tab contents
-  const configurationContent = (
-    <div className="space-y-4">
-      {/* Alert Configuration Table */}
+  // Render alert table for a group
+  const renderAlertTable = (categories: AlertCategory[]) => {
+    const configs = alertConfigs.filter((c) => categories.includes(c.alertCategory));
+    if (configs.length === 0) return null;
+
+    return (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -365,7 +386,7 @@ export default function AlertSettingsPage() {
             </tr>
           </thead>
           <tbody>
-            {alertConfigs.map((config) => (
+            {configs.map((config) => (
               <tr key={config.id} className="border-b border-white/5">
                 <td className="py-4">
                   <div>
@@ -425,6 +446,21 @@ export default function AlertSettingsPage() {
           </tbody>
         </table>
       </div>
+    );
+  };
+
+  // Tab contents
+  const configurationContent = (
+    <div className="space-y-8">
+      {alertGroups.map((group) => (
+        <div key={group.title} className="space-y-4">
+          <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+            <span className="text-xl">{group.icon}</span>
+            <h3 className="text-lg font-semibold text-white">{group.title}</h3>
+          </div>
+          {renderAlertTable(group.categories)}
+        </div>
+      ))}
     </div>
   );
 
