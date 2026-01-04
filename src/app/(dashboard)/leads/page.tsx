@@ -32,6 +32,8 @@ interface ApiLead {
   convertedToDealId: string | null;
   ownerId: string;
   owner: { id: string; name: string; email: string };
+  marketingRepId: string | null;
+  marketingRep: { id: string; name: string; email: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -307,7 +309,10 @@ export default function LeadsPage() {
                   Regions
                 </th>
                 <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-white/50 sm:table-cell">
-                  Owner
+                  Sales Rep
+                </th>
+                <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-white/50 sm:table-cell">
+                  Marketing Rep
                 </th>
                 <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-white/50 md:table-cell">
                   Created
@@ -348,6 +353,9 @@ export default function LeadsPage() {
                   </td>
                   <td className="hidden px-4 py-3 text-sm text-white/60 sm:table-cell">
                     {lead.owner?.name || 'Unassigned'}
+                  </td>
+                  <td className="hidden px-4 py-3 text-sm text-white/60 sm:table-cell">
+                    {lead.marketingRep?.name || '-'}
                   </td>
                   <td className="hidden px-4 py-3 text-sm text-white/50 md:table-cell">
                     {formatDate(new Date(lead.createdAt))}

@@ -31,6 +31,9 @@ export async function GET(req: NextRequest) {
       owner: {
         select: { id: true, name: true, email: true },
       },
+      marketingRep: {
+        select: { id: true, name: true, email: true },
+      },
       convertedToDeal: {
         select: { id: true, name: true, stage: true },
       },

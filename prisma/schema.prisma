@@ -137,6 +137,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   leadsOwned      Lead[]               @relation("LeadOwner")
+  leadsMarketing  Lead[]               @relation("LeadMarketingRep")
   dealsOwned      Deal[]               @relation("DealOwner")
   activities      Activity[]
   tasks           Task[]
@@ -162,6 +163,8 @@ model Lead {
   regionTags        String[]    @default([])
   ownerId           String
   owner             User        @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  marketingRepId    String?
+  marketingRep      User?       @relation("LeadMarketingRep", fields: [marketingRepId], references: [id])
   convertedToDealId String?     @unique
   convertedToDeal   Deal?       @relation("LeadToDeal", fields: [convertedToDealId], references: [id])
   isConverted       Boolean     @default(false)
@@ -171,6 +174,7 @@ model Lead {
   activities Activity[]
   tasks      Task[]
 
+  @@index([marketingRepId])
   @@map("leads")
 }
 
