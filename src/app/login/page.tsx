@@ -6,15 +6,16 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
 const PRODUCTS = [
-  { name: 'BookB', logo: '/logos/products/bookb.png' },
-  { name: 'GymWyse', logo: '/logos/products/gymwyse.png' },
-  { name: 'SchoolsOut', logo: '/logos/products/schoolsout.png' },
-  { name: 'Vizier', logo: '/logos/products/vizier.png' },
-  { name: 'Claire', logo: '/logos/products/claire.png' },
-  { name: 'clinIQ', logo: '/logos/products/cliniq.png' },
-  { name: 'Regue', logo: '/logos/products/regue.png' },
-  { name: 'SentienGuard', logo: '/logos/products/sentienguard.png' },
-  { name: 'ProofGrid', logo: '/logos/products/proofgrid.png' },
+  { name: 'BookB', logo: '/logos/products/BlackAndGold_Logo-Transparent.png' },
+  { name: 'GymWyse', logo: '/logos/products/logo4_transparent_white.png' },
+  { name: 'SchoolsOut', logo: '/logos/products/Logo_transparentbg_blackfont.png' },
+  { name: 'Vizier', logo: '/logos/products/transparent logo.png' },
+  { name: 'Claire', logo: '/logos/products/Logo_transparent.png' },
+  { name: 'clinIQ', logo: '/logos/products/clinIQ_new_logo.png' },
+  { name: 'Regue', logo: '/logos/products/Full logo transparent.png' },
+  { name: 'SentienGuard', logo: '/logos/products/SentienGuardLogo.png' },
+  { name: 'ProofGrid', logo: '/logos/products/PoofGrid Logo Transparent.png' },
+  { name: 'LayersRank', logo: '/logos/products/LayersRank By The Algorithm Logo Transparent White.png' },
 ];
 
 interface Stats {

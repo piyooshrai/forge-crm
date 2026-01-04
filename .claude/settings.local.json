@@ -25,7 +25,9 @@
       "Bash(npx next build)",
       "Bash(cat:*)",
       "Bash(timeout:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ]
   }
 }
