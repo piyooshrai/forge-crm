@@ -1,8 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+
+const RESPONSE_TYPES = [
+  { value: 'INTERESTED', label: 'Interested (positive response)' },
+  { value: 'NOT_INTERESTED', label: 'Not Interested (polite decline)' },
+  { value: 'NO_RESPONSE', label: 'No Response (ghosted)' },
+  { value: 'NO_REPLY_YET', label: 'No Reply Yet (waiting)' },
+];
 
 const TASK_TYPES = [
   { value: 'LINKEDIN_OUTREACH', label: 'LinkedIn Outreach' },
@@ -43,6 +50,33 @@ interface Task {
   templateName?: string;
   user: { id: string; name: string };
   product?: { id: string; name: string } | null;
+  // New engagement metrics
+  likes?: number | null;
+  comments?: number | null;
+  shares?: number | null;
+  views?: number | null;
+  opens?: number | null;
+  sent?: number | null;
+  replies?: number | null;
+  attendees?: number | null;
+  meetingsBooked?: number | null;
+  // ICP engagement
+  icpEngagement?: boolean;
+  // Lead attribution
+  leadsGeneratedCount?: number;
+  generatedLeads?: Array<{ id: string; name: string; company?: string }>;
+  // Response tracking
+  responseType?: string | null;
+  connectionAccepted?: boolean | null;
+  // Outcome override
+  outcomeOverride?: boolean;
+  overrideReason?: string | null;
+}
+
+interface Lead {
+  id: string;
+  name: string;
+  company?: string;
 }
 
 interface Product {
@@ -102,7 +136,127 @@ export default function MarketingTasksPage() {
     outcome: 'SUCCESS',
     resultNotes: '',
     leadGenerated: false,
+    // Engagement metrics
+    likes: '',
+    comments: '',
+    shares: '',
+    views: '',
+    opens: '',
+    sent: '',
+    replies: '',
+    attendees: '',
+    meetingsBooked: '',
+    // ICP engagement
+    icpEngagement: false,
+    // Lead attribution
+    leadsGeneratedCount: '',
+    linkedLeadIds: [] as string[],
+    // Response tracking
+    responseType: '',
+    connectionAccepted: false,
+    // Outcome override
+    outcomeOverride: false,
+    overrideReason: '',
   });
+
+  // Available leads for linking
+  const [availableLeads, setAvailableLeads] = useState<Lead[]>([]);
+
+  // Calculate outcome preview based on current form values
+  const outcomePreview = useMemo(() => {
+    if (!showUpdateOutcome || updateForm.outcomeOverride) return null;
+
+    const taskType = showUpdateOutcome.type;
+    const metrics = {
+      likes: updateForm.likes ? parseInt(updateForm.likes) : 0,
+      comments: updateForm.comments ? parseInt(updateForm.comments) : 0,
+      shares: updateForm.shares ? parseInt(updateForm.shares) : 0,
+      views: updateForm.views ? parseInt(updateForm.views) : 0,
+      opens: updateForm.opens ? parseInt(updateForm.opens) : 0,
+      sent: updateForm.sent ? parseInt(updateForm.sent) : 0,
+      replies: updateForm.replies ? parseInt(updateForm.replies) : 0,
+      attendees: updateForm.attendees ? parseInt(updateForm.attendees) : 0,
+      meetingsBooked: updateForm.meetingsBooked ? parseInt(updateForm.meetingsBooked) : 0,
+      icpEngagement: updateForm.icpEngagement,
+      leadsGeneratedCount: updateForm.leadsGeneratedCount ? parseInt(updateForm.leadsGeneratedCount) : 0,
+      responseType: updateForm.responseType || null,
+      connectionAccepted: updateForm.connectionAccepted,
+    };
+
+    // Calculate outcome based on task type
+    let outcome = 'PARTIAL';
+    const checks: Array<{ label: string; passed: boolean; value: string | number | boolean }> = [];
+
+    switch (taskType) {
+      case 'SOCIAL_POST':
+        checks.push({ label: 'Likes >= 10', passed: metrics.likes >= 10, value: metrics.likes });
+        checks.push({ label: 'Comments >= 5', passed: metrics.comments >= 5, value: metrics.comments });
+        checks.push({ label: 'ICP Engagement', passed: metrics.icpEngagement, value: metrics.icpEngagement });
+        checks.push({ label: 'Leads Generated', passed: metrics.leadsGeneratedCount >= 1, value: metrics.leadsGeneratedCount });
+        if (metrics.leadsGeneratedCount >= 1) outcome = 'SUCCESS';
+        else if (metrics.likes >= 10 && metrics.comments >= 5 && metrics.icpEngagement) outcome = 'SUCCESS';
+        else if ((metrics.likes >= 5 && metrics.likes < 10) || (metrics.comments >= 2 && metrics.comments < 5)) outcome = 'PARTIAL';
+        else outcome = 'FAILED';
+        break;
+      case 'LINKEDIN_OUTREACH':
+        checks.push({ label: 'Interested Response', passed: metrics.responseType === 'INTERESTED', value: metrics.responseType || 'None' });
+        checks.push({ label: 'Connection Accepted', passed: metrics.connectionAccepted, value: metrics.connectionAccepted });
+        checks.push({ label: 'Lead Generated', passed: metrics.leadsGeneratedCount >= 1, value: metrics.leadsGeneratedCount });
+        if (metrics.responseType === 'INTERESTED' || metrics.leadsGeneratedCount >= 1) outcome = 'SUCCESS';
+        else if (metrics.connectionAccepted || metrics.responseType === 'NOT_INTERESTED') outcome = 'PARTIAL';
+        else outcome = 'FAILED';
+        break;
+      case 'BLOG_POST':
+        checks.push({ label: 'Views >= 100', passed: metrics.views >= 100, value: metrics.views });
+        checks.push({ label: 'ICP Traffic', passed: metrics.icpEngagement, value: metrics.icpEngagement });
+        checks.push({ label: 'Leads Generated', passed: metrics.leadsGeneratedCount >= 1, value: metrics.leadsGeneratedCount });
+        if (metrics.leadsGeneratedCount >= 1) outcome = 'SUCCESS';
+        else if (metrics.views >= 100 && metrics.icpEngagement) outcome = 'SUCCESS';
+        else if (metrics.views >= 50 && metrics.views < 100) outcome = 'PARTIAL';
+        else outcome = 'FAILED';
+        break;
+      case 'EMAIL_CAMPAIGN':
+      case 'COLD_EMAIL':
+        const sentVal = metrics.sent || 1;
+        const openRate = Math.round((metrics.opens / sentVal) * 100);
+        const replyRate = Math.round((metrics.replies / sentVal) * 100);
+        checks.push({ label: 'Open Rate >= 20%', passed: openRate >= 20, value: `${openRate}%` });
+        checks.push({ label: 'Reply Rate >= 5%', passed: replyRate >= 5, value: `${replyRate}%` });
+        checks.push({ label: 'Leads Generated', passed: metrics.leadsGeneratedCount >= 1, value: metrics.leadsGeneratedCount });
+        if (replyRate >= 5 || metrics.leadsGeneratedCount >= 1) outcome = 'SUCCESS';
+        else if (openRate >= 20) outcome = 'PARTIAL';
+        else outcome = 'FAILED';
+        break;
+      case 'EVENT':
+      case 'WEBINAR':
+        checks.push({ label: 'Attendees >= 10', passed: metrics.attendees >= 10, value: metrics.attendees });
+        checks.push({ label: 'Meetings Booked', passed: metrics.meetingsBooked >= 1, value: metrics.meetingsBooked });
+        checks.push({ label: 'Leads Generated', passed: metrics.leadsGeneratedCount >= 1, value: metrics.leadsGeneratedCount });
+        if (metrics.leadsGeneratedCount >= 1 || metrics.meetingsBooked >= 1) outcome = 'SUCCESS';
+        else if (metrics.attendees >= 10) outcome = 'PARTIAL';
+        else outcome = 'FAILED';
+        break;
+      default:
+        checks.push({ label: 'ICP Engagement', passed: metrics.icpEngagement, value: metrics.icpEngagement });
+        checks.push({ label: 'Leads Generated', passed: metrics.leadsGeneratedCount >= 1, value: metrics.leadsGeneratedCount });
+        if (metrics.leadsGeneratedCount >= 1) outcome = 'SUCCESS';
+        else if (metrics.icpEngagement) outcome = 'PARTIAL';
+        break;
+    }
+
+    return { outcome, checks };
+  }, [showUpdateOutcome, updateForm]);
+
+  // Fetch available leads for linking
+  const fetchAvailableLeads = async () => {
+    try {
+      const res = await fetch('/api/leads?status=NEW&limit=100');
+      const data = await res.json();
+      setAvailableLeads(data.leads || []);
+    } catch (error) {
+      console.error('Failed to fetch leads:', error);
+    }
+  };
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -180,10 +334,52 @@ export default function MarketingTasksPage() {
     if (!showUpdateOutcome) return;
 
     try {
+      const payload: any = {
+        status: updateForm.status,
+        resultNotes: updateForm.resultNotes,
+        leadGenerated: updateForm.leadGenerated || (updateForm.leadsGeneratedCount ? parseInt(updateForm.leadsGeneratedCount) > 0 : false),
+        icpEngagement: updateForm.icpEngagement,
+        outcomeOverride: updateForm.outcomeOverride,
+        overrideReason: updateForm.overrideReason || null,
+      };
+
+      // Add engagement metrics based on task type
+      const taskType = showUpdateOutcome.type;
+      if (taskType === 'SOCIAL_POST') {
+        payload.likes = updateForm.likes ? parseInt(updateForm.likes) : null;
+        payload.comments = updateForm.comments ? parseInt(updateForm.comments) : null;
+        payload.shares = updateForm.shares ? parseInt(updateForm.shares) : null;
+      } else if (taskType === 'LINKEDIN_OUTREACH') {
+        payload.responseType = updateForm.responseType || null;
+        payload.connectionAccepted = updateForm.connectionAccepted;
+      } else if (taskType === 'BLOG_POST') {
+        payload.views = updateForm.views ? parseInt(updateForm.views) : null;
+      } else if (taskType === 'EMAIL_CAMPAIGN' || taskType === 'COLD_EMAIL') {
+        payload.sent = updateForm.sent ? parseInt(updateForm.sent) : null;
+        payload.opens = updateForm.opens ? parseInt(updateForm.opens) : null;
+        payload.replies = updateForm.replies ? parseInt(updateForm.replies) : null;
+      } else if (taskType === 'EVENT' || taskType === 'WEBINAR') {
+        payload.attendees = updateForm.attendees ? parseInt(updateForm.attendees) : null;
+        payload.meetingsBooked = updateForm.meetingsBooked ? parseInt(updateForm.meetingsBooked) : null;
+      }
+
+      // Lead attribution
+      if (updateForm.leadsGeneratedCount) {
+        payload.leadsGeneratedCount = parseInt(updateForm.leadsGeneratedCount);
+      }
+      if (updateForm.linkedLeadIds.length > 0) {
+        payload.linkedLeadIds = updateForm.linkedLeadIds;
+      }
+
+      // Manual outcome if override is enabled
+      if (updateForm.outcomeOverride) {
+        payload.outcome = updateForm.outcome;
+      }
+
       const res = await fetch(`/api/marketing-tasks/${showUpdateOutcome.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateForm),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -452,7 +648,24 @@ export default function MarketingTasksPage() {
                               outcome: 'SUCCESS',
                               resultNotes: '',
                               leadGenerated: false,
+                              likes: '',
+                              comments: '',
+                              shares: '',
+                              views: '',
+                              opens: '',
+                              sent: '',
+                              replies: '',
+                              attendees: '',
+                              meetingsBooked: '',
+                              icpEngagement: false,
+                              leadsGeneratedCount: '',
+                              linkedLeadIds: [],
+                              responseType: '',
+                              connectionAccepted: false,
+                              outcomeOverride: false,
+                              overrideReason: '',
                             });
+                            fetchAvailableLeads();
                           }}
                           className="text-xs text-yellow-400 hover:text-yellow-300"
                         >
@@ -606,9 +819,10 @@ export default function MarketingTasksPage() {
       {/* Update Outcome Modal */}
       {showUpdateOutcome && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-slate-900 border border-slate-800 p-6 w-full max-w-lg">
-            <h2 className="text-lg font-bold text-white mb-4">Update Outcome</h2>
+          <div className="bg-slate-900 border border-slate-800 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-white mb-4">Update Outcome - {getTypeLabel(showUpdateOutcome.type)}</h2>
             <div className="space-y-4">
+              {/* Status */}
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Status</label>
                 <select
@@ -621,18 +835,289 @@ export default function MarketingTasksPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Outcome</label>
-                <select
-                  value={updateForm.outcome}
-                  onChange={(e) => setUpdateForm({ ...updateForm, outcome: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
-                >
-                  {OUTCOME_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+
+              {/* Type-specific engagement metrics */}
+              {showUpdateOutcome.type === 'SOCIAL_POST' && (
+                <div className="p-4 bg-slate-800/50 border border-slate-700 space-y-3">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Engagement Metrics</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Likes</label>
+                      <input
+                        type="number"
+                        value={updateForm.likes}
+                        onChange={(e) => setUpdateForm({ ...updateForm, likes: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Comments</label>
+                      <input
+                        type="number"
+                        value={updateForm.comments}
+                        onChange={(e) => setUpdateForm({ ...updateForm, comments: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Shares</label>
+                      <input
+                        type="number"
+                        value={updateForm.shares}
+                        onChange={(e) => setUpdateForm({ ...updateForm, shares: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {showUpdateOutcome.type === 'LINKEDIN_OUTREACH' && (
+                <div className="p-4 bg-slate-800/50 border border-slate-700 space-y-3">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Response Tracking</p>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Response Type</label>
+                    <select
+                      value={updateForm.responseType}
+                      onChange={(e) => setUpdateForm({ ...updateForm, responseType: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                    >
+                      <option value="">Select response...</option>
+                      {RESPONSE_TYPES.map(r => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={updateForm.connectionAccepted}
+                      onChange={(e) => setUpdateForm({ ...updateForm, connectionAccepted: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm text-gray-300">Connection request accepted</span>
+                  </label>
+                </div>
+              )}
+
+              {showUpdateOutcome.type === 'BLOG_POST' && (
+                <div className="p-4 bg-slate-800/50 border border-slate-700 space-y-3">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Traffic Metrics</p>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Page Views</label>
+                    <input
+                      type="number"
+                      value={updateForm.views}
+                      onChange={(e) => setUpdateForm({ ...updateForm, views: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                      placeholder="0"
+                      min="0"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(showUpdateOutcome.type === 'EMAIL_CAMPAIGN' || showUpdateOutcome.type === 'COLD_EMAIL') && (
+                <div className="p-4 bg-slate-800/50 border border-slate-700 space-y-3">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Email Metrics</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Sent</label>
+                      <input
+                        type="number"
+                        value={updateForm.sent}
+                        onChange={(e) => setUpdateForm({ ...updateForm, sent: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Opens</label>
+                      <input
+                        type="number"
+                        value={updateForm.opens}
+                        onChange={(e) => setUpdateForm({ ...updateForm, opens: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Replies</label>
+                      <input
+                        type="number"
+                        value={updateForm.replies}
+                        onChange={(e) => setUpdateForm({ ...updateForm, replies: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(showUpdateOutcome.type === 'EVENT' || showUpdateOutcome.type === 'WEBINAR') && (
+                <div className="p-4 bg-slate-800/50 border border-slate-700 space-y-3">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider">Event Metrics</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Attendees</label>
+                      <input
+                        type="number"
+                        value={updateForm.attendees}
+                        onChange={(e) => setUpdateForm({ ...updateForm, attendees: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Meetings Booked</label>
+                      <input
+                        type="number"
+                        value={updateForm.meetingsBooked}
+                        onChange={(e) => setUpdateForm({ ...updateForm, meetingsBooked: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ICP Engagement */}
+              {['SOCIAL_POST', 'BLOG_POST', 'CONTENT_CREATION', 'OTHER'].includes(showUpdateOutcome.type) && (
+                <div className="p-4 bg-slate-800/50 border border-slate-700">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={updateForm.icpEngagement}
+                      onChange={(e) => setUpdateForm({ ...updateForm, icpEngagement: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    <div>
+                      <span className="text-sm text-gray-300">Engagement was from target audience</span>
+                      <p className="text-xs text-gray-500">B2B decision-makers, not random consumers</p>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {/* Lead Generation */}
+              <div className="p-4 bg-slate-800/50 border border-slate-700 space-y-3">
+                <p className="text-xs text-gray-400 uppercase tracking-wider">Lead Generation</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Number of Leads Generated</label>
+                    <input
+                      type="number"
+                      value={updateForm.leadsGeneratedCount}
+                      onChange={(e) => setUpdateForm({ ...updateForm, leadsGeneratedCount: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                      placeholder="0"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Link to Leads (optional)</label>
+                    <select
+                      multiple
+                      value={updateForm.linkedLeadIds}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions, option => option.value);
+                        setUpdateForm({ ...updateForm, linkedLeadIds: selected });
+                      }}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300 h-20"
+                    >
+                      {availableLeads.map(lead => (
+                        <option key={lead.id} value={lead.id}>
+                          {lead.name} {lead.company ? `(${lead.company})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Ctrl+click to select multiple</p>
+                  </div>
+                </div>
               </div>
+
+              {/* Calculated Outcome Preview */}
+              {outcomePreview && !updateForm.outcomeOverride && (
+                <div className="p-4 bg-slate-800/50 border border-slate-700">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-3">Calculated Outcome</p>
+                  <div className="space-y-2 mb-3">
+                    {outcomePreview.checks.map((check, i) => (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span className="text-gray-400">{check.label}</span>
+                        <span className={check.passed ? 'text-green-400' : 'text-gray-500'}>
+                          {check.passed ? '✓' : '✗'} {String(check.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-700">
+                    <span className="text-gray-400">Result:</span>
+                    <span className={`text-lg font-bold ${
+                      outcomePreview.outcome === 'SUCCESS' ? 'text-green-400' :
+                      outcomePreview.outcome === 'PARTIAL' ? 'text-yellow-400' : 'text-red-400'
+                    }`}>
+                      {outcomePreview.outcome}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Outcome Override */}
+              <div className="p-4 bg-slate-800/50 border border-slate-700 space-y-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={updateForm.outcomeOverride}
+                    onChange={(e) => setUpdateForm({ ...updateForm, outcomeOverride: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-gray-300">Override calculated outcome</span>
+                </label>
+                {updateForm.outcomeOverride && (
+                  <>
+                    <div className="p-2 bg-yellow-900/20 border border-yellow-600/30 text-yellow-400 text-xs">
+                      Manual overrides are reviewed by leadership. Provide detailed justification.
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Manual Outcome</label>
+                      <select
+                        value={updateForm.outcome}
+                        onChange={(e) => setUpdateForm({ ...updateForm, outcome: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                      >
+                        {OUTCOME_OPTIONS.map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Override Reason (required)</label>
+                      <textarea
+                        value={updateForm.overrideReason}
+                        onChange={(e) => setUpdateForm({ ...updateForm, overrideReason: e.target.value })}
+                        rows={2}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
+                        placeholder="Why are you overriding the calculated outcome?"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Result Notes */}
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1">Result Notes</label>
                 <textarea
@@ -640,21 +1125,11 @@ export default function MarketingTasksPage() {
                   onChange={(e) => setUpdateForm({ ...updateForm, resultNotes: e.target.value })}
                   rows={3}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-sm text-gray-300"
-                  placeholder="What happened?"
+                  placeholder="What happened? Any learnings?"
                 />
               </div>
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={updateForm.leadGenerated}
-                    onChange={(e) => setUpdateForm({ ...updateForm, leadGenerated: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm text-gray-300">Lead Generated</span>
-                </label>
-              </div>
             </div>
+
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => setShowUpdateOutcome(null)}
@@ -664,7 +1139,8 @@ export default function MarketingTasksPage() {
               </button>
               <button
                 onClick={handleUpdateOutcome}
-                className="px-4 py-2 bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700"
+                disabled={updateForm.outcomeOverride && !updateForm.overrideReason}
+                className="px-4 py-2 bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Update
               </button>

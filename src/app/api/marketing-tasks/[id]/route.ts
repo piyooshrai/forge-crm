@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { calculateOutcome } from '@/lib/marketing-outcome';
 
 export async function GET(
   req: NextRequest,
@@ -28,6 +29,9 @@ export async function GET(
       template: { select: { id: true, templateName: true, description: true, content: true } },
       tasksFromTemplate: {
         select: { id: true, outcome: true },
+      },
+      generatedLeads: {
+        select: { id: true, name: true, company: true, email: true },
       },
     },
   });
@@ -98,28 +102,106 @@ export async function PUT(
     generatedLeadId,
     isTemplate,
     templateName,
+    // New engagement metrics
+    likes,
+    comments,
+    shares,
+    views,
+    opens,
+    sent,
+    replies,
+    attendees,
+    meetingsBooked,
+    // ICP engagement
+    icpEngagement,
+    // Lead attribution
+    leadsGeneratedCount,
+    linkedLeadIds,
+    // Response tracking
+    responseType,
+    connectionAccepted,
+    // Outcome override
+    outcomeOverride,
+    overrideReason,
   } = body;
+
+  // Build update data
+  const updateData: any = {
+    ...(type && { type }),
+    ...(description && { description }),
+    ...(target !== undefined && { target }),
+    ...(content !== undefined && { content }),
+    ...(taskDate && { taskDate: new Date(taskDate) }),
+    ...(status && { status }),
+    ...(resultNotes !== undefined && { resultNotes }),
+    ...(leadGenerated !== undefined && { leadGenerated }),
+    ...(generatedLeadId !== undefined && { generatedLeadId }),
+    ...(isTemplate !== undefined && { isTemplate }),
+    ...(templateName !== undefined && { templateName }),
+    // New engagement metrics
+    ...(likes !== undefined && { likes }),
+    ...(comments !== undefined && { comments }),
+    ...(shares !== undefined && { shares }),
+    ...(views !== undefined && { views }),
+    ...(opens !== undefined && { opens }),
+    ...(sent !== undefined && { sent }),
+    ...(replies !== undefined && { replies }),
+    ...(attendees !== undefined && { attendees }),
+    ...(meetingsBooked !== undefined && { meetingsBooked }),
+    // ICP engagement
+    ...(icpEngagement !== undefined && { icpEngagement }),
+    // Lead attribution
+    ...(leadsGeneratedCount !== undefined && { leadsGeneratedCount }),
+    // Response tracking
+    ...(responseType !== undefined && { responseType }),
+    ...(connectionAccepted !== undefined && { connectionAccepted }),
+    // Outcome override
+    ...(outcomeOverride !== undefined && { outcomeOverride }),
+    ...(overrideReason !== undefined && { overrideReason }),
+  };
+
+  // Calculate outcome if not overridden and metrics provided
+  if (status === 'COMPLETED' && !outcomeOverride) {
+    const taskType = type || task.type;
+    const metrics = {
+      type: taskType,
+      likes: likes ?? task.likes,
+      comments: comments ?? task.comments,
+      shares: shares ?? task.shares,
+      views: views ?? task.views,
+      opens: opens ?? task.opens,
+      sent: sent ?? task.sent,
+      replies: replies ?? task.replies,
+      attendees: attendees ?? task.attendees,
+      meetingsBooked: meetingsBooked ?? task.meetingsBooked,
+      icpEngagement: icpEngagement ?? task.icpEngagement ?? false,
+      leadsGeneratedCount: leadsGeneratedCount ?? task.leadsGeneratedCount ?? 0,
+      responseType: responseType ?? task.responseType,
+      connectionAccepted: connectionAccepted ?? task.connectionAccepted,
+    };
+    const { outcome: calculatedOutcome } = calculateOutcome(metrics);
+    updateData.outcome = calculatedOutcome;
+  } else if (outcome !== undefined) {
+    // Allow manual outcome if overriding
+    updateData.outcome = outcome;
+  }
 
   const updatedTask = await prisma.marketingTask.update({
     where: { id },
-    data: {
-      ...(type && { type }),
-      ...(description && { description }),
-      ...(target !== undefined && { target }),
-      ...(content !== undefined && { content }),
-      ...(taskDate && { taskDate: new Date(taskDate) }),
-      ...(status && { status }),
-      ...(outcome !== undefined && { outcome }),
-      ...(resultNotes !== undefined && { resultNotes }),
-      ...(leadGenerated !== undefined && { leadGenerated }),
-      ...(generatedLeadId !== undefined && { generatedLeadId }),
-      ...(isTemplate !== undefined && { isTemplate }),
-      ...(templateName !== undefined && { templateName }),
-    },
+    data: updateData,
     include: {
       user: { select: { id: true, name: true, email: true } },
+      generatedLeads: { select: { id: true, name: true, company: true } },
     },
   });
+
+  // Link leads to this task if provided
+  if (linkedLeadIds && Array.isArray(linkedLeadIds) && linkedLeadIds.length > 0) {
+    await prisma.lead.updateMany({
+      where: { id: { in: linkedLeadIds } },
+      data: { generatedFromTaskId: id },
+    });
+  }
 
   return NextResponse.json(updatedTask);
 }

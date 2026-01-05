@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
       user: { select: { id: true, name: true, email: true } },
       template: { select: { id: true, templateName: true } },
       product: { select: { id: true, name: true } },
+      generatedLeads: { select: { id: true, name: true, company: true } },
     },
     orderBy: { taskDate: 'desc' },
     take: limit,

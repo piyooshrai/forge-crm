@@ -122,6 +122,13 @@ enum MarketingTaskOutcome {
   FAILED
 }
 
+enum ResponseType {
+  INTERESTED
+  NOT_INTERESTED
+  NO_RESPONSE
+  NO_REPLY_YET
+}
+
 // ============ MODELS ============
 
 model User {
@@ -158,29 +165,32 @@ model User {
 }
 
 model Lead {
-  id                String      @id @default(cuid())
-  name              String
-  email             String?
-  phone             String?
-  company           String?
-  title             String?
-  source            LeadSource  @default(OTHER)
-  status            LeadStatus  @default(NEW)
-  regionTags        String[]    @default([])
-  ownerId           String
-  owner             User        @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  marketingRepId    String?
-  marketingRep      User?       @relation("LeadMarketingRep", fields: [marketingRepId], references: [id])
-  convertedToDealId String?     @unique
-  convertedToDeal   Deal?       @relation("LeadToDeal", fields: [convertedToDealId], references: [id])
-  isConverted       Boolean     @default(false)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                  String      @id @default(cuid())
+  name                String
+  email               String?
+  phone               String?
+  company             String?
+  title               String?
+  source              LeadSource  @default(OTHER)
+  status              LeadStatus  @default(NEW)
+  regionTags          String[]    @default([])
+  ownerId             String
+  owner               User        @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  marketingRepId      String?
+  marketingRep        User?       @relation("LeadMarketingRep", fields: [marketingRepId], references: [id])
+  convertedToDealId   String?     @unique
+  convertedToDeal     Deal?       @relation("LeadToDeal", fields: [convertedToDealId], references: [id])
+  isConverted         Boolean     @default(false)
+  generatedFromTaskId String?
+  generatedFromTask   MarketingTask? @relation("TaskGeneratedLeads", fields: [generatedFromTaskId], references: [id])
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
   activities Activity[]
   tasks      Task[]
 
   @@index([marketingRepId])
+  @@index([generatedFromTaskId])
   @@map("leads")
 }
 
@@ -417,6 +427,33 @@ model MarketingTask {
   user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId     String?
   product       Product?               @relation(fields: [productId], references: [id])
+
+  // Engagement metrics
+  likes         Int?
+  comments      Int?
+  shares        Int?
+  views         Int?
+  opens         Int?
+  sent          Int?
+  replies       Int?
+  attendees     Int?
+  meetingsBooked Int?
+
+  // ICP engagement
+  icpEngagement Boolean                @default(false)
+
+  // Lead attribution
+  leadsGeneratedCount Int              @default(0)
+  generatedLeads Lead[]                @relation("TaskGeneratedLeads")
+
+  // Response tracking (for outreach)
+  responseType  ResponseType?
+  connectionAccepted Boolean?
+
+  // Outcome override
+  outcomeOverride Boolean              @default(false)
+  overrideReason String?               @db.Text
+
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 

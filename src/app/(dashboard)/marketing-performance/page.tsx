@@ -20,9 +20,23 @@ interface TypeStats {
   type: string;
   count: number;
   success: number;
+  partial: number;
   failed: number;
   successRate: number;
   leadsGenerated: number;
+  icpEngagement: number;
+  icpEngagementRate: number;
+  // Type-specific metrics
+  avgLikes?: number;
+  avgComments?: number;
+  avgShares?: number;
+  avgViews?: number;
+  openRate?: number;
+  replyRate?: number;
+  responseBreakdown?: { interested: number; notInterested: number; noResponse: number };
+  connectionAcceptRate?: number;
+  avgAttendees?: number;
+  totalMeetingsBooked?: number;
 }
 
 interface RepStats {
@@ -31,6 +45,7 @@ interface RepStats {
   totalTasks: number;
   successRate: number;
   leadsGenerated: number;
+  icpEngagementRate: number;
 }
 
 interface ProductOption {
@@ -48,6 +63,8 @@ interface Stats {
     failedTasks: number;
     successRate: number;
     leadsGenerated: number;
+    icpEngagementTasks: number;
+    icpEngagementRate: number;
   };
   byType: TypeStats[];
   bestPerforming: TypeStats[];
@@ -255,7 +272,7 @@ export default function MarketingPerformancePage() {
       {stats && (
         <>
           {/* Aggregate Performance */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div className="p-4 bg-slate-900/50 border border-slate-800">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Total Tasks</p>
               <p className="text-2xl font-bold text-white tabular-nums">{stats.summary.totalTasks}</p>
@@ -269,6 +286,12 @@ export default function MarketingPerformancePage() {
             <div className="p-4 bg-slate-900/50 border border-slate-800">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Leads Generated</p>
               <p className="text-2xl font-bold text-cyan-400 tabular-nums">{stats.summary.leadsGenerated}</p>
+            </div>
+            <div className="p-4 bg-slate-900/50 border border-slate-800">
+              <p className="text-xs text-gray-500 uppercase tracking-wider">ICP Engagement</p>
+              <p className={`text-2xl font-bold tabular-nums ${stats.summary.icpEngagementRate >= 50 ? 'text-green-400' : 'text-yellow-400'}`}>
+                {stats.summary.icpEngagementRate}%
+              </p>
             </div>
             <div className="p-4 bg-slate-900/50 border border-slate-800">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Successes</p>
@@ -292,9 +315,12 @@ export default function MarketingPerformancePage() {
                     <th className="text-left p-4">Type</th>
                     <th className="text-right p-4">Tasks</th>
                     <th className="text-right p-4">Success</th>
+                    <th className="text-right p-4">Partial</th>
                     <th className="text-right p-4">Failed</th>
                     <th className="text-right p-4">Success Rate</th>
+                    <th className="text-right p-4">ICP %</th>
                     <th className="text-right p-4">Leads</th>
+                    <th className="text-left p-4">Avg Metrics</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
@@ -303,11 +329,32 @@ export default function MarketingPerformancePage() {
                       <td className="p-4 text-gray-300">{getTypeLabel(t.type)}</td>
                       <td className="p-4 text-right text-gray-300 tabular-nums">{t.count}</td>
                       <td className="p-4 text-right text-green-400 tabular-nums">{t.success}</td>
+                      <td className="p-4 text-right text-yellow-400 tabular-nums">{t.partial}</td>
                       <td className="p-4 text-right text-red-400 tabular-nums">{t.failed}</td>
                       <td className={`p-4 text-right tabular-nums font-medium ${t.successRate >= 25 ? 'text-green-400' : 'text-red-400'}`}>
                         {t.successRate}%
                       </td>
+                      <td className={`p-4 text-right tabular-nums ${t.icpEngagementRate >= 50 ? 'text-green-400' : 'text-yellow-400'}`}>
+                        {t.icpEngagementRate}%
+                      </td>
                       <td className="p-4 text-right text-cyan-400 tabular-nums">{t.leadsGenerated}</td>
+                      <td className="p-4 text-left text-gray-500 text-xs">
+                        {t.type === 'SOCIAL_POST' && t.avgLikes !== undefined && (
+                          <span>{t.avgLikes} likes, {t.avgComments} comments, {t.avgShares} shares</span>
+                        )}
+                        {t.type === 'LINKEDIN_OUTREACH' && t.responseBreakdown && (
+                          <span>{t.connectionAcceptRate}% connect, {t.responseBreakdown.interested} interested</span>
+                        )}
+                        {t.type === 'BLOG_POST' && t.avgViews !== undefined && (
+                          <span>{t.avgViews} avg views</span>
+                        )}
+                        {(t.type === 'EMAIL_CAMPAIGN' || t.type === 'COLD_EMAIL') && t.openRate !== undefined && (
+                          <span>{t.openRate}% open, {t.replyRate}% reply</span>
+                        )}
+                        {(t.type === 'EVENT' || t.type === 'WEBINAR') && t.avgAttendees !== undefined && (
+                          <span>{t.avgAttendees} avg attendees, {t.totalMeetingsBooked} meetings</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -365,6 +412,7 @@ export default function MarketingPerformancePage() {
                       <th className="text-left p-4">Name</th>
                       <th className="text-right p-4">Tasks</th>
                       <th className="text-right p-4">Success Rate</th>
+                      <th className="text-right p-4">ICP %</th>
                       <th className="text-right p-4">Leads</th>
                     </tr>
                   </thead>
@@ -375,6 +423,9 @@ export default function MarketingPerformancePage() {
                         <td className="p-4 text-right text-gray-300 tabular-nums">{rep.totalTasks}</td>
                         <td className={`p-4 text-right tabular-nums font-medium ${rep.successRate >= 25 ? 'text-green-400' : 'text-red-400'}`}>
                           {rep.successRate}%
+                        </td>
+                        <td className={`p-4 text-right tabular-nums ${rep.icpEngagementRate >= 50 ? 'text-green-400' : 'text-yellow-400'}`}>
+                          {rep.icpEngagementRate}%
                         </td>
                         <td className="p-4 text-right text-cyan-400 tabular-nums">{rep.leadsGenerated}</td>
                       </tr>
