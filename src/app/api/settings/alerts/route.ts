@@ -18,12 +18,13 @@ async function checkSuperAdmin() {
 }
 
 // Default thresholds for each alert category
-const defaultThresholds: Record<AlertCategory, { red: number; yellow: number; green: number }> = {
+const defaultThresholds: Record<AlertCategory, { red: number; yellow: number; green: number; schedule?: string }> = {
   QUOTA: { red: 50, yellow: 80, green: 100 },       // Percentage of quota
   STALE: { red: 14, yellow: 7, green: 0 },          // Days since activity
   ACTIVITY: { red: 50, yellow: 75, green: 100 },    // Percentage of target
   TASK: { red: 3, yellow: 1, green: 0 },            // Overdue tasks count
   MARKETING: { red: 30, yellow: 50, green: 70 },    // Success percentage
+  MARKETING_WEEKLY: { red: 30, yellow: 50, green: 70, schedule: '0 17 * * 5' },  // Friday 5pm
   MONTHLY: { red: 50, yellow: 80, green: 100 },     // Monthly review thresholds
 };
 
@@ -40,17 +41,21 @@ export async function GET() {
       orderBy: { alertCategory: 'asc' },
     });
 
-    // Create default configs if none exist
-    if (alertConfigs.length === 0) {
-      const categories: AlertCategory[] = ['QUOTA', 'STALE', 'ACTIVITY', 'TASK', 'MARKETING', 'MONTHLY'];
+    // All expected categories
+    const allCategories: AlertCategory[] = ['QUOTA', 'STALE', 'ACTIVITY', 'TASK', 'MARKETING', 'MARKETING_WEEKLY', 'MONTHLY'];
 
-      for (const category of categories) {
+    // Find missing categories and create them
+    const existingCategories = new Set(alertConfigs.map(c => c.alertCategory));
+    const missingCategories = allCategories.filter(cat => !existingCategories.has(cat));
+
+    if (missingCategories.length > 0) {
+      for (const category of missingCategories) {
         const defaults = defaultThresholds[category];
         await prisma.alertConfig.create({
           data: {
             alertCategory: category,
             enabled: true,
-            schedule: '0 9 * * 1-5',
+            schedule: defaults.schedule || '0 9 * * 1-5',
             redThreshold: defaults.red,
             yellowThreshold: defaults.yellow,
             greenThreshold: defaults.green,

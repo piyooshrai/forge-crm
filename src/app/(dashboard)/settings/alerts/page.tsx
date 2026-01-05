@@ -16,7 +16,8 @@ const categoryLabels: Record<AlertCategory, string> = {
   STALE: 'Stale Leads/Deals',
   ACTIVITY: 'Activity Monitoring',
   TASK: 'Task Alerts',
-  MARKETING: 'Marketing Performance',
+  MARKETING: 'Marketing Daily Check',
+  MARKETING_WEEKLY: 'Marketing Weekly Summary',
   MONTHLY: 'Monthly Review',
 };
 
@@ -25,7 +26,8 @@ const categoryDescriptions: Record<AlertCategory, string> = {
   STALE: 'Alerts for leads/deals with no recent activity',
   ACTIVITY: 'Alerts for low activity levels',
   TASK: 'Alerts for overdue tasks',
-  MARKETING: 'Alerts for marketing task success rates',
+  MARKETING: 'Daily alerts for marketing task success rates',
+  MARKETING_WEEKLY: 'Friday weekly summary with performance breakdown (CC to CEO)',
   MONTHLY: 'End-of-month performance reviews',
 };
 
@@ -39,7 +41,7 @@ const alertGroups: { title: string; icon: string; categories: AlertCategory[] }[
   {
     title: 'Marketing Alerts',
     icon: '📣',
-    categories: ['MARKETING'],
+    categories: ['MARKETING', 'MARKETING_WEEKLY'],
   },
   {
     title: 'General Alerts',
@@ -54,6 +56,7 @@ const thresholdLabels: Record<AlertCategory, { red: string; yellow: string; gree
   ACTIVITY: { red: 'RED if below % target', yellow: 'YELLOW if below % target', green: 'GREEN if above % target' },
   TASK: { red: 'RED if > overdue', yellow: 'YELLOW if > overdue', green: 'N/A' },
   MARKETING: { red: 'RED if success < %', yellow: 'YELLOW if success < %', green: 'GREEN if success > %' },
+  MARKETING_WEEKLY: { red: 'RED if success < %', yellow: 'YELLOW if success < %', green: 'GREEN if success > %' },
   MONTHLY: { red: 'RED if below %', yellow: 'YELLOW if below %', green: 'GREEN if above %' },
 };
 

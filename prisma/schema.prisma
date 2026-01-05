@@ -356,6 +356,7 @@ enum AlertCategory {
   ACTIVITY
   TASK
   MARKETING
+  MARKETING_WEEKLY
   MONTHLY
 }
 

@@ -27,7 +27,8 @@
       "Bash(timeout:*)",
       "Bash(npx vercel:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(dir \"D:\\\\Application Development\\\\Forge\\\\forge\\\\src\\\\components\\\\ui\")"
     ]
   }
 }
