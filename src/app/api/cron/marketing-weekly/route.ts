@@ -229,7 +229,8 @@ export async function GET(req: NextRequest) {
       });
 
       // Determine CC recipients based on severity
-      const ccRecipients: string[] = [];
+      // CEO is always CC'd on marketing weekly alerts
+      const ccRecipients: string[] = [RECIPIENTS.CEO];
       if (severity === 'RED' || severity === 'GREEN') {
         ccRecipients.push(RECIPIENTS.HR);
       } else if (severity === 'YELLOW') {

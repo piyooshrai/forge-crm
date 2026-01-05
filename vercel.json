@@ -21,6 +21,10 @@
       "schedule": "0 16 * * 5"
     },
     {
+      "path": "/api/cron/marketing-weekly",
+      "schedule": "0 17 * * 5"
+    },
+    {
       "path": "/api/cron/monthly-review",
       "schedule": "0 9 1 * *"
     },
