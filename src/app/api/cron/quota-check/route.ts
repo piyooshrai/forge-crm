@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     const users = await prisma.user.findMany({
       where: {
         role: { in: ['SALES_REP', 'MARKETING_REP'] },
+        excludeFromReporting: false,
       },
       select: {
         id: true,

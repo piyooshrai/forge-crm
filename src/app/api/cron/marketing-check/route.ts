@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     const users = await prisma.user.findMany({
       where: {
         role: 'MARKETING_REP',
+        excludeFromReporting: false,
       },
       select: {
         id: true,
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     const allTasks = await prisma.marketingTask.findMany({
       where: {
         taskDate: { gte: weekStart },
-        user: { role: 'MARKETING_REP' },
+        user: { role: 'MARKETING_REP', excludeFromReporting: false },
         outcome: { not: null },
       },
     });

@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     const users = await prisma.user.findMany({
       where: {
         role: { in: ['SALES_REP', 'MARKETING_REP'] },
+        excludeFromReporting: false,
       },
       select: {
         id: true,
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     const allActivities = await prisma.activity.count({
       where: {
         createdAt: { gte: weekStart },
-        user: { role: { in: ['SALES_REP', 'MARKETING_REP'] } },
+        user: { role: { in: ['SALES_REP', 'MARKETING_REP'] }, excludeFromReporting: false },
       },
     });
     const teamAverage = users.length > 0 ? Math.round(allActivities / users.length) : 0;

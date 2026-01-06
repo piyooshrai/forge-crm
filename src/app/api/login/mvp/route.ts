@@ -21,7 +21,10 @@ export async function GET() {
     lastWeekStart.setHours(0, 0, 0, 0);
 
     const users = await prisma.user.findMany({
-      where: { role: { in: ['SALES_REP', 'MARKETING_REP'] } },
+      where: {
+        role: { in: ['SALES_REP', 'MARKETING_REP'] },
+        excludeFromReporting: false, // Exclude users hidden from reporting
+      },
     });
 
     if (users.length === 0) {

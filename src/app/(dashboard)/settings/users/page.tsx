@@ -11,6 +11,7 @@ interface User {
   role: string;
   isActive: boolean;
   monthlyQuota: number;
+  excludeFromReporting: boolean;
   createdAt: string;
 }
 
@@ -38,6 +39,7 @@ export default function UsersPage() {
     password: '',
     role: 'SALES_REP',
     monthlyQuota: 3000,
+    excludeFromReporting: false,
   });
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
@@ -113,6 +115,7 @@ export default function UsersPage() {
           email: formData.email,
           role: formData.role,
           monthlyQuota: formData.monthlyQuota,
+          excludeFromReporting: formData.excludeFromReporting,
         }),
       });
 
@@ -199,6 +202,7 @@ export default function UsersPage() {
       password: '',
       role: user.role,
       monthlyQuota: user.monthlyQuota,
+      excludeFromReporting: user.excludeFromReporting,
     });
     setFormError('');
     setShowEditModal(true);
@@ -211,6 +215,7 @@ export default function UsersPage() {
       password: '',
       role: 'SALES_REP',
       monthlyQuota: 3000,
+      excludeFromReporting: false,
     });
     setFormError('');
   };
@@ -514,6 +519,23 @@ export default function UsersPage() {
                 <p className="text-xs text-gray-500 mt-1">
                   For Sales: $ amount. For Marketing: lead count target.
                 </p>
+              </div>
+
+              <div className="border-t border-slate-700 pt-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.excludeFromReporting}
+                    onChange={e => setFormData({ ...formData, excludeFromReporting: e.target.checked })}
+                    className="w-4 h-4 bg-slate-800 border border-slate-700 rounded text-cyan-600 focus:ring-cyan-600 focus:ring-offset-slate-900"
+                  />
+                  <div>
+                    <span className="text-sm text-gray-300">Exclude from reporting</span>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Hide this user from leaderboards, team rankings, and performance alerts
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {formError && (

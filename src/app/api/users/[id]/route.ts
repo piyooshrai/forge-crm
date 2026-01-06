@@ -45,6 +45,7 @@ export async function GET(
       role: true,
       isActive: true,
       monthlyQuota: true,
+      excludeFromReporting: true,
       createdAt: true,
     },
   });
@@ -68,7 +69,7 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
-  const { name, email, role, monthlyQuota, isActive } = body;
+  const { name, email, role, monthlyQuota, isActive, excludeFromReporting } = body;
 
   // Check if user exists
   const existingUser = await prisma.user.findUnique({ where: { id } });
@@ -92,6 +93,7 @@ export async function PUT(
       ...(role && { role }),
       ...(monthlyQuota !== undefined && { monthlyQuota }),
       ...(isActive !== undefined && { isActive }),
+      ...(excludeFromReporting !== undefined && { excludeFromReporting }),
     },
     select: {
       id: true,
@@ -100,6 +102,7 @@ export async function PUT(
       role: true,
       isActive: true,
       monthlyQuota: true,
+      excludeFromReporting: true,
       createdAt: true,
     },
   });
@@ -135,6 +138,7 @@ export async function DELETE(
       role: true,
       isActive: true,
       monthlyQuota: true,
+      excludeFromReporting: true,
     },
   });
 
@@ -183,6 +187,7 @@ export async function PATCH(
         role: true,
         isActive: true,
         monthlyQuota: true,
+        excludeFromReporting: true,
       },
     });
 

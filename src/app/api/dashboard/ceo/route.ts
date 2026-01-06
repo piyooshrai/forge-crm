@@ -24,7 +24,10 @@ export async function GET() {
   // Fetch all necessary data
   const [users, deals, leads, marketingTasks, activities] = await Promise.all([
     prisma.user.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        excludeFromReporting: false, // Exclude users hidden from reporting
+      },
       select: {
         id: true,
         name: true,

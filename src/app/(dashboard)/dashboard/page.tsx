@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import GlassCard from '@/components/GlassCard';
 import SectionHeader from '@/components/SectionHeader';
-import { Modal } from '@/components/ui';
+import { Modal, EmptyState } from '@/components/ui';
 import {
   ResponsiveContainer,
   BarChart,
@@ -156,10 +156,12 @@ function HorizontalBarChart({
   data,
   title,
   thresholds,
+  emptyMessage = 'No data available',
 }: {
   data: { name: string; value: number }[];
   title: string;
   thresholds: { green: number; yellow: number };
+  emptyMessage?: string;
 }) {
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -173,54 +175,68 @@ function HorizontalBarChart({
     return null;
   };
 
+  const isEmpty = data.length === 0;
+
   return (
     <GlassCard variant="secondary" className="p-6 flex-1">
       <SectionHeader title={title} className="mb-4" />
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={data}
-            layout="vertical"
-            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
-          >
-            <XAxis
-              type="number"
-              domain={[0, Math.max(100, ...data.map(d => d.value))]}
-              tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-              tickLine={false}
-            />
-            <YAxis
-              type="category"
-              dataKey="name"
-              tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
-              axisLine={false}
-              tickLine={false}
-              width={75}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24}>
-              {data.map((entry, index) => (
-                <Cell key={index} fill={getBarColor(entry.value, thresholds)} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="flex gap-4 mt-4 text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
-          <span className="text-white/50">{`>${thresholds.green}%`}</span>
+      {isEmpty ? (
+        <div className="h-64 flex items-center justify-center">
+          <EmptyState
+            icon="📊"
+            title={emptyMessage}
+            description="Data will appear here once there is activity to report"
+          />
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
-          <span className="text-white/50">{`${thresholds.yellow}-${thresholds.green}%`}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-          <span className="text-white/50">{`<${thresholds.yellow}%`}</span>
-        </div>
-      </div>
+      ) : (
+        <>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={data}
+                layout="vertical"
+                margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+              >
+                <XAxis
+                  type="number"
+                  domain={[0, Math.max(100, ...data.map(d => d.value))]}
+                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                  tickLine={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={75}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24}>
+                  {data.map((entry, index) => (
+                    <Cell key={index} fill={getBarColor(entry.value, thresholds)} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex gap-4 mt-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
+              <span className="text-white/50">{`>${thresholds.green}%`}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+              <span className="text-white/50">{`${thresholds.yellow}-${thresholds.green}%`}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+              <span className="text-white/50">{`<${thresholds.yellow}%`}</span>
+            </div>
+          </div>
+        </>
+      )}
     </GlassCard>
   );
 }
@@ -261,7 +277,8 @@ function EffortVsRoiChart({ data }: { data: EffortVsRoi[] }) {
     );
   };
 
-  const maxValue = Math.max(
+  const isEmpty = data.length === 0;
+  const maxValue = isEmpty ? 100 : Math.max(
     100,
     ...data.map(d => d.effort),
     ...data.map(d => d.roi)
@@ -270,83 +287,95 @@ function EffortVsRoiChart({ data }: { data: EffortVsRoi[] }) {
   return (
     <GlassCard variant="secondary" className="p-6">
       <SectionHeader title="Effort vs ROI by Channel" className="mb-4" />
-      <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 20, right: 20, bottom: 40, left: 40 }}>
-            <XAxis
-              type="number"
-              dataKey="effort"
-              domain={[0, maxValue]}
-              name="Effort"
-              tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-              tickLine={false}
-              label={{
-                value: '% of Team Effort',
-                position: 'bottom',
-                offset: 20,
-                fill: 'rgba(255,255,255,0.5)',
-                fontSize: 12,
-              }}
-            />
-            <YAxis
-              type="number"
-              dataKey="roi"
-              domain={[0, maxValue]}
-              name="ROI"
-              tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
-              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-              tickLine={false}
-              label={{
-                value: '% of Revenue',
-                angle: -90,
-                position: 'left',
-                offset: 10,
-                fill: 'rgba(255,255,255,0.5)',
-                fontSize: 12,
-              }}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-            <ReferenceLine
-              segment={[{ x: 0, y: 0 }, { x: maxValue, y: maxValue }]}
-              stroke="rgba(255,255,255,0.3)"
-              strokeDasharray="5 5"
-              label={{
-                value: 'Break Even',
-                position: 'insideTopRight',
-                fill: 'rgba(255,255,255,0.4)',
-                fontSize: 10,
-              }}
-            />
-            <Scatter
-              name="Channels"
-              data={data}
-              shape={renderDot}
-            />
-          </ScatterChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="flex justify-center gap-6 mt-4 text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
-          <span className="text-white/50">High ROI (above line)</span>
+      {isEmpty ? (
+        <div className="h-80 flex items-center justify-center">
+          <EmptyState
+            icon="📈"
+            title="No channel data available"
+            description="Channel performance data will appear here once leads and deals are tracked"
+          />
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-          <span className="text-white/50">Wasted Effort (below line)</span>
-        </div>
-      </div>
-      {/* Channel labels */}
-      <div className="flex flex-wrap gap-2 mt-4 justify-center">
-        {data.map((item, index) => (
-          <span
-            key={index}
-            className="text-xs px-2 py-1 rounded bg-white/5 text-white/60"
-          >
-            {item.displayName}
-          </span>
-        ))}
-      </div>
+      ) : (
+        <>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 20, right: 20, bottom: 40, left: 40 }}>
+                <XAxis
+                  type="number"
+                  dataKey="effort"
+                  domain={[0, maxValue]}
+                  name="Effort"
+                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                  tickLine={false}
+                  label={{
+                    value: '% of Team Effort',
+                    position: 'bottom',
+                    offset: 20,
+                    fill: 'rgba(255,255,255,0.5)',
+                    fontSize: 12,
+                  }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="roi"
+                  domain={[0, maxValue]}
+                  name="ROI"
+                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+                  axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                  tickLine={false}
+                  label={{
+                    value: '% of Revenue',
+                    angle: -90,
+                    position: 'left',
+                    offset: 10,
+                    fill: 'rgba(255,255,255,0.5)',
+                    fontSize: 12,
+                  }}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                <ReferenceLine
+                  segment={[{ x: 0, y: 0 }, { x: maxValue, y: maxValue }]}
+                  stroke="rgba(255,255,255,0.3)"
+                  strokeDasharray="5 5"
+                  label={{
+                    value: 'Break Even',
+                    position: 'insideTopRight',
+                    fill: 'rgba(255,255,255,0.4)',
+                    fontSize: 10,
+                  }}
+                />
+                <Scatter
+                  name="Channels"
+                  data={data}
+                  shape={renderDot}
+                />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex justify-center gap-6 mt-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
+              <span className="text-white/50">High ROI (above line)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+              <span className="text-white/50">Wasted Effort (below line)</span>
+            </div>
+          </div>
+          {/* Channel labels */}
+          <div className="flex flex-wrap gap-2 mt-4 justify-center">
+            {data.map((item, index) => (
+              <span
+                key={index}
+                className="text-xs px-2 py-1 rounded bg-white/5 text-white/60"
+              >
+                {item.displayName}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
     </GlassCard>
   );
 }
@@ -536,6 +565,7 @@ export default function DashboardPage() {
             value: p.value,
           }))}
           thresholds={{ green: 100, yellow: 70 }}
+          emptyMessage="No team members to display"
         />
         <HorizontalBarChart
           title="Channel Performance"
@@ -544,6 +574,7 @@ export default function DashboardPage() {
             value: c.value,
           }))}
           thresholds={{ green: 30, yellow: 15 }}
+          emptyMessage="No channel performance data"
         />
       </div>
 

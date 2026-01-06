@@ -11,7 +11,10 @@ export async function GET() {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     const users = await prisma.user.findMany({
-      where: { role: { in: ['SALES_REP', 'MARKETING_REP'] } },
+      where: {
+        role: { in: ['SALES_REP', 'MARKETING_REP'] },
+        excludeFromReporting: false, // Exclude users hidden from reporting
+      },
     });
 
     if (users.length === 0) {

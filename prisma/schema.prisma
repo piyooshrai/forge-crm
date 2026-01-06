@@ -149,6 +149,9 @@ model User {
   onboardingStep        Int       @default(0)
   hiredAt               DateTime?
 
+  // Reporting exclusion - when true, user is hidden from leaderboards and doesn't receive alerts
+  excludeFromReporting  Boolean   @default(false)
+
   leadsOwned      Lead[]               @relation("LeadOwner")
   leadsMarketing  Lead[]               @relation("LeadMarketingRep")
   dealsOwned      Deal[]               @relation("DealOwner")

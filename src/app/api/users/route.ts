@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
       role: true,
       isActive: true,
       monthlyQuota: true,
+      excludeFromReporting: true,
       createdAt: true,
     },
     orderBy: [
@@ -66,6 +67,9 @@ export async function POST(req: NextRequest) {
   // Hash password
   const hashedPassword = await bcrypt.hash(password, 10);
 
+  // SUPER_ADMIN users are excluded from reporting by default
+  const excludeFromReporting = role === 'SUPER_ADMIN';
+
   const user = await prisma.user.create({
     data: {
       email,
@@ -74,6 +78,7 @@ export async function POST(req: NextRequest) {
       role,
       monthlyQuota: monthlyQuota || 3000,
       isActive: true,
+      excludeFromReporting,
     },
     select: {
       id: true,
@@ -82,6 +87,7 @@ export async function POST(req: NextRequest) {
       role: true,
       isActive: true,
       monthlyQuota: true,
+      excludeFromReporting: true,
       createdAt: true,
     },
   });

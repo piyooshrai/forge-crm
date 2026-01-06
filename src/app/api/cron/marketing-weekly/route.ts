@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
       where: {
         role: 'MARKETING_REP',
         isActive: true,
+        excludeFromReporting: false,
       },
       select: {
         id: true,

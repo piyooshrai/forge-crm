@@ -32,7 +32,10 @@ export async function GET() {
     const winRate = totalClosed > 0 ? Math.round((closedWonThisMonth / totalClosed) * 100) : 0;
 
     const users = await prisma.user.findMany({
-      where: { role: { in: ['SALES_REP', 'MARKETING_REP'] } },
+      where: {
+        role: { in: ['SALES_REP', 'MARKETING_REP'] },
+        excludeFromReporting: false, // Exclude users hidden from reporting
+      },
     });
 
     let totalQuotaTarget = 0;
