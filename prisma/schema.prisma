@@ -70,11 +70,13 @@ enum ActivityType {
 
 enum ActivityOutcome {
   CONNECTED
+  MEETING_BOOKED
   LEFT_VOICEMAIL
   NO_ANSWER
   BUSY
+  NOT_INTERESTED
   WRONG_NUMBER
-  SCHEDULED_CALLBACK
+  CALLBACK_REQUESTED
 }
 
 enum ProductType {
@@ -280,6 +282,7 @@ model Activity {
   duration    Int?
   outcome     ActivityOutcome?
   contactName String?
+  callTime    String?
   leadId      String?
   lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   dealId      String?
