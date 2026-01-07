@@ -19,6 +19,7 @@ const navigation: NavItem[] = [
   { name: 'Marketing Stats', href: '/marketing-performance', icon: '📈', roles: ['SUPER_ADMIN'] },
   { name: 'Leads', href: '/leads', icon: '👥' },
   { name: 'Deals', href: '/deals', icon: '💼', roles: ['SUPER_ADMIN', 'SALES_REP'] },
+  { name: 'Bulk Log Calls', href: '/bulk-log-calls', icon: '📞', roles: ['SUPER_ADMIN', 'SALES_REP'] },
   { name: 'Products', href: '/products', icon: '📦', roles: ['SUPER_ADMIN', 'SALES_REP'] },
   { name: 'Reports', href: '/reports', icon: '📉', disabled: true, roles: ['SUPER_ADMIN', 'SALES_REP'] },
   { name: 'Users', href: '/settings/users', icon: '👤', roles: ['SUPER_ADMIN'] },

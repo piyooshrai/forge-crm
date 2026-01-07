@@ -68,6 +68,15 @@ enum ActivityType {
   EMAIL
 }
 
+enum ActivityOutcome {
+  CONNECTED
+  LEFT_VOICEMAIL
+  NO_ANSWER
+  BUSY
+  WRONG_NUMBER
+  SCHEDULED_CALLBACK
+}
+
 enum ProductType {
   ONE_TIME
   RECURRING
@@ -264,10 +273,13 @@ model DealLineItem {
 }
 
 model Activity {
-  id          String       @id @default(cuid())
-  type        ActivityType @default(NOTE)
+  id          String           @id @default(cuid())
+  type        ActivityType     @default(NOTE)
   subject     String
-  description String?      @db.Text
+  description String?          @db.Text
+  duration    Int?
+  outcome     ActivityOutcome?
+  contactName String?
   leadId      String?
   lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
   dealId      String?

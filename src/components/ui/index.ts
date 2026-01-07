@@ -6,3 +6,4 @@ export { default as ConfirmModal } from './ConfirmModal';
 export { default as EmptyState } from './EmptyState';
 export { default as Badge } from './Badge';
 export { default as Tabs } from './Tabs';
+export { SearchableSelect, type DealLeadOption } from './SearchableSelect';
